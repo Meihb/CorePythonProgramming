@@ -1,0 +1,1 @@
+<<Core Python Applications Programming>>learning record
