@@ -15,7 +15,6 @@ tcpSerSock.listen(5)
 
 def handleSocket(cliSock,cliAddr):
     print('Connection Accepted')
-    s_addr = str(addr)
     cliSock.send(b'Welcome!,%s'%((str(addr))).encode())
     while True:
         msg = cliSock.recv(BUFSIZE)

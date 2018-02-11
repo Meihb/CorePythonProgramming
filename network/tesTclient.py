@@ -1,4 +1,5 @@
 from socket import *
+import threading
 
 HOST = '127.0.0.1'
 # HOST = '122.112.248.56'
@@ -8,7 +9,9 @@ ADDR = (HOST, PORT)
 
 tsTcliSock = socket(AF_INET,SOCK_STREAM)
 tsTcliSock.connect(ADDR)
-print(tsTcliSock)
+
+def recvData():
+    
 
 while True:
     data = input('>')
