@@ -10,16 +10,36 @@ ADDR = (HOST, PORT)
 tsTcliSock = socket(AF_INET,SOCK_STREAM)
 tsTcliSock.connect(ADDR)
 
-def recvData():
-    
+def recvData(cliSocket,buffsize):
+    while True:
+        data = cliSocket.recv(buffsize)
+        if data:
+            print(data.decode())
+        if data.decode=='exit':
+            break
 
-while True:
-    data = input('>')
-    if not data:
-        break
-    tsTcliSock.send(data.encode('utf-8'))
-    data = tsTcliSock.recv(BUFSIZE)
-    print(data.decode('utf-8'))
-    if not data:
-        break
-tsTcliSock.close()
+def sendData(cliSocket):
+    while True:
+        data = input('>')
+        print(data)
+        if not data:
+            break
+        cliSocket.send(data.encode('utf-8'))
+
+recv_t = threading.Thread(target=recvData,args=(tsTcliSock,BUFSIZE))
+send_t = threading.Thread(target=sendData,args=(tsTcliSock,))
+recv_t.start()
+send_t.start()
+
+
+
+# while True:
+#     data = input('>')
+#     if not data:
+#         break
+#     tsTcliSock.send(data.encode('utf-8'))
+#     data = tsTcliSock.recv(BUFSIZE)
+#     print(data.decode('utf-8'))
+#     if not data:
+#         break
+# tsTcliSock.close()
