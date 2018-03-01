@@ -1,4 +1,5 @@
 #/usr/local/bin/python3
+# -*- coding:utf-8 -*-
 
 import ftplib,os,socket
 
