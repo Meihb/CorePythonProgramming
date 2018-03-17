@@ -17,4 +17,4 @@ import re
 if __name__ == "__main__":
     response = request.urlopen("http://fanyi.baidu.com#en/zh")
     html = response.read().decode()
-    print(html)
+    print(html,'')
