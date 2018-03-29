@@ -31,6 +31,7 @@ gen = MyGenerator()
 print(next(gen))
 print(gen.send(' I am Value'))
 
+
 def consumer():
     r = ''
     while True:
