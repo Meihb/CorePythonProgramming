@@ -3,8 +3,10 @@ from urllib import request
 if __name__ == "__main__":
     #访问网址
     url = 'http://122.112.248.56/showremoteAddr.php'
+    url = 'https://api.bilibili.com/x/v2/reply?type=1&sort=0&oid=10120347&pn=1'
     #这是代理IP
-    proxy = {'https': 'https://183.56.177.130:808', 'http': '183.56.177.130:808'}
+    proxy ={'https': 'https://113.121.243.153:47386', 'http': 'http://113.121.243.153:47386'}
+
     # proxy=None
     #创建ProxyHandler
     proxy_support = request.ProxyHandler(proxy)

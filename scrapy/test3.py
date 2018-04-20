@@ -10,7 +10,7 @@ import threading
 
 
 def mysql_configure():  # mysql配置
-    conn = pymysql.connect(host='localhost', user='root', passwd='mhb12121992', port=3306, charset='utf8')
+    conn = pymysql.connect(host='localhost', user='root', passwd='mhb12121992', port=3306, charset='utf8mb4')
     conn.select_db('dwts')
     # conn = pymysql.connect(host='115.182.4.116', user='assess', passwd='Abcd1234', port=3306, charset='utf8')
     # conn.select_db('assess')
@@ -33,9 +33,10 @@ def generateRequestProxy():
     global global_proxy_list
     global global_proxy_flag
     global global_proxy_addr
-    choose_proxy()
-    global_proxy_addr = global_proxy_list.pop()
+
     if global_proxy_flag:
+        choose_proxy()
+        global_proxy_addr = global_proxy_list.pop()
         # 创建ProxyHandler
         proxy_support = urllib.request.ProxyHandler(global_proxy_addr)
         # 创建Opener
@@ -55,25 +56,24 @@ def requestConf(avid, pn):
     }
     request = urllib.request.Request(url, headers=head)
 
-    try:
-        open = urllib.request.urlopen(request)
-        jscontent = open.read()
-        return jscontent.decode('utf-8', 'ignore')
-    except urllib.request.URLError as e:
-        print('oops,looks like we need to change proxy')
-        generateRequestProxy()  # 切换代理
-        requestConf(avid, pn)
+    open = urllib.request.urlopen(request)
+    jscontent = open.read()
+    return jscontent.decode('utf-8', 'ignore')
+
+
+# except urllib.request.URLError as e:
+
 
 # 保存信息 savetype 1:mysql 2:txt
 def saveInfo(uid, uname, message, rtime, avid, pn, rpid, savetype=1):
     if savetype == 1:
         try:
-            cur.execute('INSERT INTO bilibili_user_info VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
-                        [0, uid, uname, message, rtime, avid, pn, rpid])
-            conn.commit()
+            cur.execute(
+                'INSERT INTO bilibili_user_info (id,mid,name,sign,time,avid,pn,rpid) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
+                [0, uid, uname, message, rtime, avid, pn, rpid])
+
         except  Exception as e:
             print('message is ' + message)
-            exit()
     elif savetype == 2:
         target_root = configureRoot()
         target_file = '%s\\%s.txt' % (target_root, avid)
@@ -84,6 +84,7 @@ def saveInfo(uid, uname, message, rtime, avid, pn, rpid, savetype=1):
                     time.localtime(
                         rtime)) + '\t' + str(
                     message).replace('\n', ' ') + '\n')
+
     else:
         print('invalid type to save')
 
@@ -98,17 +99,21 @@ def analyzeJson(jsData):
     return {'uid': mid, 'uname': name, 'message': sign, 'rtime': rtime, 'rpid': rpid}
 
 
+def jsonDecodeHtml(page_info):
+    jsDict = json.loads(page_info)
+    return jsDict
+
+
 # 处理单个av号
 def procAvid(avid):
-    global  global_proxy_addr
+    global global_proxy_addr
     msg = ''
-    if  not global_proxy_addr=={}:
+    if not global_proxy_addr == {}:
         msg = '[!代理使用:%s]' % str(global_proxy_addr)
 
-
-    print(' %s处理av%s 第一页' % (msg,avid))
+    print(' %s处理av%s 第一页' % (msg, avid))
     first_page_info = requestConf(avid, 1)
-    jsDict = json.loads(first_page_info)
+    jsDict = jsonDecodeHtml(first_page_info)
     if jsDict['code'] == 0:
         jsData = jsDict['data']
         jsPages = jsData['page']
@@ -118,7 +123,7 @@ def procAvid(avid):
         for jsReply in jsReplys:  # 处理第一页数据
             saveInfo(**analyzeJson(jsReply), avid=avid, pn=1)
         for pn in range(2, pageMax + 1):  # 处理后续页面数据
-            print('%s处理av%s 第%d页'%(msg,avid,pn))
+            print('%s处理av%s 第%d页' % (msg, avid, pn))
             poc(avid, pn)
 
 
@@ -126,26 +131,35 @@ def procAvid(avid):
 def proc_avids():
     global global_proxy_addr
     global global_proxy_list
+    global global_proxy_flag
 
-    generateRequestProxy()# 生成代理
+    generateRequestProxy()  # 生成代理
     target_root = os.path.expanduser('~') + '/哔哩哔哩AV号.txt'
     with open(target_root, 'r') as f:
         for line in f.readlines():  # 逐行获取每一行av号
             try:
                 procAvid(int(line))
-            except:
+                print('commit av%s 数据到mysql' % line)
+                conn.commit()
+                print('保存成功')
+            except Exception as e:
+                print('Exception occurs ' + e.__str__())
                 print('change urllib')
-                generateRequestProxy()  # 生成代理
-                procAvid(int(line))
-                # exit()
-            finally:
-                print('Done')
+                print('rollback  av%s 数据到mysql' % line)
+                conn.rollback()
+                if global_proxy_flag:
+                    generateRequestProxy()  # 生成代理
+                    print('用新代理处理av%s' % line)
+                    procAvid(int(line))
+                else:
+                    print('运行到av%s被限制,无法继续' % line)
+                    exit()
 
 
 # 处理数据并保存
 def poc(avid, pn):
     jscontent = requestConf(avid, pn)
-    jsDict = json.loads(jscontent)
+    jsDict = jsonDecodeHtml(jscontent)
     if jsDict['code'] == 0:
         jsData = jsDict['data']
         jsReplys = jsData['replies']
@@ -161,8 +175,9 @@ def choose_proxy():
         print('获取代理IP列表')
         for proxy in get_proxy_list.get_result_proxy():
             global_proxy_list.append(proxy)
-        print('获取成功' + global_proxy_list.__str__())
         global_proxy_list.append({})
+
+    print('获取成功' + global_proxy_list.__str__())
     return global_proxy_list
 
 
@@ -174,7 +189,6 @@ global_request = None
 
 ssl._create_default_https_context = ssl._create_unverified_context  # 关闭ssl证书验证
 cur, conn = mysql_configure()  # 初始化数据库
-
 
 proc_avids()  # 开始处理
 # procAvid(10150031);
