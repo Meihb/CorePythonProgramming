@@ -77,7 +77,9 @@ def generateRequestProxy():
 # 模拟request请求
 def requestConf(avid, pn):
     global global_proxy_flag
-    time.sleep(random.randint(1, 3))
+    # time.sleep(random.randint(1, 3))
+
+    time.sleep(random.randint(800, 1200)/1000)
     if global_proxy_flag:
         headers, proxy = generateRequestProxyV2()
     else:
