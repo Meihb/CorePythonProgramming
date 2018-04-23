@@ -79,7 +79,7 @@ def requestConf(avid, pn):
     global global_proxy_flag
     # time.sleep(random.randint(1, 3))
 
-    time.sleep(random.randint(400, 800)/1000)
+    time.sleep(random.randint(300, 600)/1000)
     if global_proxy_flag:
         headers, proxy = generateRequestProxyV2()
     else:
