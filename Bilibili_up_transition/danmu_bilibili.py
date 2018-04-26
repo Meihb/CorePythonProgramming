@@ -28,6 +28,9 @@ def getdanmu(av):
         headers={'User-Agent':"Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko)",}
         u = requests.get(url=url,headers=headers)
         html = u.text
+
+        print(html)
+        exit()
         cid = re.findall(r'cid=(.*?)&',html)[0]
         dmurl = "http://comment.bilibili.com/"+str(cid)+".xml"
         dmhtml = requests.get(dmurl).text
