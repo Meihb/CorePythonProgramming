@@ -45,7 +45,8 @@ for cookie in cookies:
     new_cookie=name+'='+ value+';'
     new_cookies=new_cookies + new_cookie
 new_cookies=new_cookies[:-1]
-    
+print(new_cookies)
+exit()
 res = driver.execute_script('return PPval.ppt;')
 res2 = driver.execute_script('return PPval.res2;')
 startdate='2017-12-01'
