@@ -35,7 +35,7 @@ print(r.json())
 # for cookie in r.cookies:
 #     print(cookie)
 # print(r.cookies)
-# 设置cookie
+#   # 设置cookie
 # r = requests.get('http://httpbin.org/cookies',cookies ={'cookie_name':'12'})
 # print(r.text)
 
