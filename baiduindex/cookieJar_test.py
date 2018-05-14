@@ -4,6 +4,7 @@
 import requests
 import http.cookiejar
 import urllib.request
+from selenium import webdriver
 
 filename = 'FileCookieJar_test.txt'
 def test_url():

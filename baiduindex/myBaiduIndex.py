@@ -54,13 +54,14 @@ def prep_cookies():
 
         browser.find_element_by_id('TANGRAM_12__submit').submit()  # 确认登录
         cookies = browser.get_cookies()
-        print(cookies)
+        # print(cookies)
         new_cookies = ''
         for cookie in cookies:
-            print(cookie)
+            # print(cookie)
             new_cookies += cookie['name'] + '=' + cookie['value'] + ';'
         new_cookies = new_cookies[:-1]  # 去掉末尾;
-        print(type(cookies))
+        # print(type(cookies))
+        return cookies
     except  NoSuchElementException as e:
         print('111' + e.msg)
         exit()

@@ -46,7 +46,7 @@ for cookie in cookies:
     new_cookies=new_cookies + new_cookie
 new_cookies=new_cookies[:-1]
 print(new_cookies)
-exit()
+# exit()
 res = driver.execute_script('return PPval.ppt;')
 res2 = driver.execute_script('return PPval.res2;')
 startdate='2017-12-01'
@@ -68,7 +68,7 @@ header={
 url='http://index.baidu.com/Interface/Search/getSubIndex/?res={}&res2={}&type=0&startdate={}&enddate={}&forecast=0&word={}'.format(res,res2,startdate,enddate,word)
 req=requests.get(url,headers=header).json()
 
-
+print(req)
 res3_list = req['data']['all'][0]['userIndexes_enc']
 res3_list = res3_list.split(',')
 print(len(res3_list))

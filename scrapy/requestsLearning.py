@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import requests, time
+from requests import cookies
 
 '''
 r = requests.get('https://api.github.com/events',params={'key':'11'})
@@ -40,7 +41,7 @@ print(r.json())
 # print(r.text)
 
 # Cookie对象
-jar = requests.cookies.RequestsCookieJar()
+jar = cookies.RequestsCookieJar()
 jar.set('test_cookie1', 'yum1', domain='httpbin.org', path='/cookies')
 jar.set('test_cookie2', 'yum2', domain='httpbin.org', path='/cookies')
 r = requests.get('http://httpbin.org/cookies', cookies=jar)
