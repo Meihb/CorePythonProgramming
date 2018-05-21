@@ -39,6 +39,7 @@ time.sleep(5)
 
 new_cookies=''
 cookies = driver.get_cookies()
+print(cookies)
 for cookie in cookies:
     name=(cookie['name'])
     value=(cookie['value'])
@@ -46,7 +47,7 @@ for cookie in cookies:
     new_cookies=new_cookies + new_cookie
 new_cookies=new_cookies[:-1]
 print(new_cookies)
-# exit()
+exit()
 res = driver.execute_script('return PPval.ppt;')
 res2 = driver.execute_script('return PPval.res2;')
 startdate='2017-12-01'
