@@ -131,7 +131,7 @@ for region in range_dict:
         n+=1
 
 print(j)
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe'
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe'
 pytesseract.pytesseract.tesseract_cmd = r'D:\software\dev\Tesseract-OCR\tesseract.exe'
 index = []
 for k in range(j):

@@ -180,6 +180,7 @@ def get_request(word, startdate, enddate,headers,browser):
             if img_content.status_code == requests.codes.ok:
                 with open('%s\\%s.png' % (save_path, m), 'wb') as file:
                     file.write(img_content.content)
+                #todo 处理时间日期转换保存
                 cur.execute('INSERT INTO `baidu_index` (dir,word,width,margin_left,img_url,location,time) '
                             'VALUES (%s,%s,%s,%s,%s,%s,%s)',
                             [save_path,word,','.join(width),','.join(margin_left),img_url,r'%s\%s.png'%(save_path,m),time.strftime('%Y-%m-%d %H:%M:%S')])
@@ -197,20 +198,41 @@ def joint(word):
     width = [ int(x) for x in info['width'].split(',')]
     margin_left = [int(x) for x in info['margin_left'].split(',')]
     save_dir = info['dir']
+    file_path = r'%s\Puzzle%s.png'%(save_dir,int(info['id']))
     try:
         code = Image.open(info['location'])
         hight = code.size[1]
-        print(width,margin_left,hight)
-        target = Image.new('RGB', (sum(width), hight))
+        print(width,margin_left,hight,sum(width))
+        target = Image.new('RGB', (sum(width), hight))#创建一个原始图,以作底图类似于php的imgcreatefromtruecolor
         for i in range(len(width)):
-            print(i)
-            img = code.crop((margin_left[i], 0, margin_left[i] + width[i], hight))
+            print((margin_left[i], 0, margin_left[i] + width[i], hight))
+            img = code.crop((margin_left[i], 0, margin_left[i] + width[i], hight))#crop((x0,y0,width,height)),裁剪目标图片
             # img.show()
             target.paste(img, (sum(width[0:i]), 0, sum(width[0:i + 1]), hight))
-            target.save('%s\\Puzzle%s.png' % (save_dir, int(info['id'])))
-        print('拼接成功')
+            # target.show()
+        target.save(file_path)
+        cur.execute("UPDATE `baidu_index` SET resolved_location =%s,recognitions = %s WHERE id=%s",[file_path,img_recognition(save_dir,int(info['id'])),int(info['id'])])
+        print('解析成功')
     except:
         traceback.print_exc()
+    finally:
+        conn.commit()
+
+def img_recognition(save_dir,index):
+    pytesseract.pytesseract.tesseract_cmd = tesseract_exe
+    jpgzoom = Image.open(r'%s\Puzzle%s.png'%(save_dir,index))
+    (x, y) = jpgzoom.size
+    x_s = 2 * x
+    y_s = 2 * y
+    out = jpgzoom.resize((x_s, y_s), Image.ANTIALIAS)
+    out.save('%s/zoom%s.jpg' % (save_dir, index), quality=95)
+    num = pytesseract.image_to_string(out)
+    if num:
+        num = num.replace("'", '').replace('.', '').replace(',', '').replace('?', '7').replace("S",'5').replace(" ","").replace("E", "8").replace("B", "8").replace("I", "1").replace("$", "8")
+    else:
+        num = ''
+    return int(num)
+
 
 if __name__ == '__main__':
     words = ['s','百年孤独','rng']
