@@ -88,9 +88,10 @@ for res3 in res3_list:
         margin_left = re.findall('margin-left:-(.*?)px',response)
         width = [ int(x) for x in width ]
         margin_left= [ int(x) for x in margin_left ]
-        #print(width,margin_left)
+        # print(width,margin_left)
         range_dict.append({'width':width,'margin_left':margin_left})
         img_url ='http://index.baidu.com' + re.findall('url\("(.*?)"',response)[0]
+        # print(img_url)
         img_content = requests.get(img_url,headers=header)
         time.sleep(1.5) 
         if img_content.status_code == requests.codes.ok:

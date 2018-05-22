@@ -51,5 +51,9 @@ def produce(c):
         print('[PRODUCER] Consumer return: %s' % r)
     c.close()
 
-c = consumer()
-produce(c)
+# c = consumer()
+# produce(c)
+
+import  time
+tss1 = '2013-10-10 23:40:00'
+tm = time.strptime(tss1, '%Y-%m-%d %H:%M:%S')

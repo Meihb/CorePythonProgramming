@@ -13,17 +13,32 @@ import re
 import urllib
 import pytesseract
 import traceback
-from http import cookiejar
+import os
+import pymysql
 
-save_path = r'D:\download\baiduINdex'
+save_path = r'D:\download\baiduINdex'+time.strftime('%Y-%m-%d %H%M')
+
 chromeDriver = r'C:\Program Files (x86)\Google\Chrome\Application\chromedriver.exe'  # chromedriver路径
 tesseract_exe = r'D:\software\dev\Tesseract-OCR\tesseract.exe'  # tesseract.exe路径
 bd_account = '13851020274'  # 百度账号
 bd_pwd = 'mhb12121992'  # 百度密码
 
+
+
 bd_url = 'http://index.baidu.com/?tpl=trend'
 
+def mysqlConn():
+    host = '118.25.41.135'
+    port = 3306
+    user = 'dwts'
+    pwd = 'dwts'
+    # 创建连接
+    conn = pymysql.connect(host=host, user=user, passwd=pwd, port=port, charset='utf8mb4',db='dwts')
 
+    # 建立游标,修改默认元组数据为字典类型
+    cur = conn.cursor(cursor=pymysql.cursors.DictCursor)
+    return conn,cur
+conn,cur = mysqlConn()
 # type 1 input;2 import 初始化关键词
 def get_keywords(type=1, *args):
     keywords = []
@@ -132,23 +147,74 @@ def webdriver_generate():  # 自动化测试工具。它支持各种浏览器，
         browser.close()
 
 
-def get_request(word, startdate, enddate):
-    cookies_string,browser = prep_cookies()
-    headers = {
-        'Host':'index.baidu.com',
-        'User-Agent':'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36',
-        'Cookie':cookies_string
-    }
-    # browser.add_cookie(cookies)
+'''
+获取关键字数据,保存原始图片
+'''
+def get_request(word, startdate, enddate,headers,browser):
     browser.get('http://index.baidu.com/?tpl=trend&word=%s'%(word))
-    # url = 'http://index.baidu.com/Interface/Search/getSubIndex/?res={}&res2={}&type=0&startdate={}&enddate={}&forecast=0&word={}'.format(
-    #     res, res2, startdate, enddate, word)
-    # req = requests.get(url, headers=headers)
-    # print(req)
+    res1 = browser.execute_script('return PPval.ppt')
+    res2 = browser.execute_script('return PPval.res2')
+    url = 'http://index.baidu.com/Interface/Search/getAllIndex/'
 
+    req = requests.get(url,params={'res':res1,'res2':res2,'word':word.encode('utf8'),'startdate':startdate,'enddate':enddate},headers=headers)
+    print(req.json())
+    res3_list = req.json()['data']['all'][0]['userIndexes_enc']
+    res3_list = res3_list.split(',')
+    print(res3_list)
+
+    m=0
+    range_dict = []
+    for res3 in res3_list:
+        timestamp = int(time.time())
+        try:
+            req = requests.get('http://index.baidu.com/Interface/IndexShow/show/',params={'res':res1,'res2':res2,'classType':1,'res3[]':res3,'className':'view-value%s'%(timestamp)},headers=headers).json()
+            response = req['data']['code'][0]
+            width = re.findall('width:(.*?)px', response)
+            margin_left = re.findall('margin-left:-(.*?)px', response)
+            # width = [int(x) for x in width]
+            # margin_left = [int(x) for x in margin_left]
+            range_dict.append({'width': width, 'margin_left': margin_left})
+            img_url = 'http://index.baidu.com' + re.findall('url\("(.*?)"\)', response)[0]
+            img_content = requests.get(img_url, headers=headers)
+            time.sleep(1.5)
+            if img_content.status_code == requests.codes.ok:
+                with open('%s\\%s.png' % (save_path, m), 'wb') as file:
+                    file.write(img_content.content)
+                cur.execute('INSERT INTO `baidu_index` (dir,word,width,margin_left,img_url,location,time) '
+                            'VALUES (%s,%s,%s,%s,%s,%s,%s)',
+                            [save_path,word,','.join(width),','.join(margin_left),img_url,r'%s\%s.png'%(save_path,m),time.strftime('%Y-%m-%d %H:%M:%S')])
+            m += 1
+        except:
+            traceback.print_exc()
+    conn.commit()
+
+'''
+拼接图片
+'''
+def joint(word):
+    cur.execute('SELECT * FROM  `baidu_index` WHERE word=(%s)',[word])
+    info = cur.fetchall()[0]
+    width = [ int(x) for x in info['width'].split(',')]
+    margin_left = [int(x) for x in info['margin_left'].split(',')]
+    save_dir = info['dir']
+    try:
+        code = Image.open(info['location'])
+        hight = code.size[1]
+        print(width,margin_left,hight)
+        target = Image.new('RGB', (sum(width), hight))
+        for i in range(len(width)):
+            print(i)
+            img = code.crop((margin_left[i], 0, margin_left[i] + width[i], hight))
+            # img.show()
+            target.paste(img, (sum(width[0:i]), 0, sum(width[0:i + 1]), hight))
+            target.save('%s\\Puzzle%s.png' % (save_dir, int(info['id'])))
+        print('拼接成功')
+    except:
+        traceback.print_exc()
 
 if __name__ == '__main__':
     words = ['s','百年孤独','rng']
+    '''
     cookies_string,browser = prep_cookies()
     headers = {
         'Host': 'index.baidu.com',
@@ -161,7 +227,14 @@ if __name__ == '__main__':
         'Accept-Language': 'zh-CN,zh;q=0.9',
         'Cookie': cookies_string
     }
-    browser.get('http://index.baidu.com/?tpl=trend&word=%s'%(words[0]))
+    browser.get('http://index.baidu.com/?tpl=trend&word=%s' % (words[0]))
+    if not os.path.exists(save_path):
+        os.mkdir(save_path)
+    get_request(words[0],'2013-12-21','2015-03-12',headers,browser)
+    browser.close()
+    '''
+    joint(words[0])
+
 
 
 
