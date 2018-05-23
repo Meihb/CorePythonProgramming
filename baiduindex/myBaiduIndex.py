@@ -148,19 +148,18 @@ def webdriver_generate():  # 自动化测试工具。它支持各种浏览器，
 
 
 '''
-获取关键字数据,保存原始图片
+获取关键字数据,保存原始图片，百度指数从20110101开始,在'全部'模式下,每周统计一次,前期可有数据缺失,需根据数据长度计算初始值
 '''
 def get_request(word, startdate, enddate,headers,browser):
     browser.get('http://index.baidu.com/?tpl=trend&word=%s'%(word))
     res1 = browser.execute_script('return PPval.ppt')
     res2 = browser.execute_script('return PPval.res2')
-    url = 'http://index.baidu.com/Interface/Search/getAllIndex/'
+    url = 'http://index.baidu.com/Interface/Search/getSubIndex/'
 
-    req = requests.get(url,params={'res':res1,'res2':res2,'word':word.encode('utf8'),'startdate':startdate,'enddate':enddate},headers=headers)
-    print(req.json())
+    req = requests.get(url,params={'res':res1,'res2':res2,'word':word.encode('utf8'),'startdate':startdate,'enddate':enddate,'forecast':0},headers=headers)
+
     res3_list = req.json()['data']['all'][0]['userIndexes_enc']
     res3_list = res3_list.split(',')
-    print(res3_list)
 
     m=0
     range_dict = []
@@ -221,10 +220,12 @@ def joint(word):
 def img_recognition(save_dir,index):
     pytesseract.pytesseract.tesseract_cmd = tesseract_exe
     jpgzoom = Image.open(r'%s\Puzzle%s.png'%(save_dir,index))
+    print(type(jpgzoom))
     (x, y) = jpgzoom.size
     x_s = 2 * x
     y_s = 2 * y
     out = jpgzoom.resize((x_s, y_s), Image.ANTIALIAS)
+    print(type(out))
     out.save('%s/zoom%s.jpg' % (save_dir, index), quality=95)
     num = pytesseract.image_to_string(out)
     if num:
@@ -236,7 +237,7 @@ def img_recognition(save_dir,index):
 
 if __name__ == '__main__':
     words = ['s','百年孤独','rng']
-    '''
+
     cookies_string,browser = prep_cookies()
     headers = {
         'Host': 'index.baidu.com',
@@ -252,10 +253,12 @@ if __name__ == '__main__':
     browser.get('http://index.baidu.com/?tpl=trend&word=%s' % (words[0]))
     if not os.path.exists(save_path):
         os.mkdir(save_path)
-    get_request(words[0],'2013-12-21','2015-03-12',headers,browser)
+    startdate = '2011-01-01'
+    enddate = time.strftime('%Y-%m-%d',time.localtime(time.time()-24*3600))
+    get_request(words[0],startdate,enddate,headers,browser)
     browser.close()
-    '''
-    joint(words[0])
+
+    # joint(words[0])
 
 
 
