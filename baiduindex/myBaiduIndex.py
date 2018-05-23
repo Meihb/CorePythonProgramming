@@ -237,7 +237,7 @@ def img_recognition(save_dir,index):
 
 if __name__ == '__main__':
     words = ['s','百年孤独','rng']
-
+    '''
     cookies_string,browser = prep_cookies()
     headers = {
         'Host': 'index.baidu.com',
@@ -257,8 +257,8 @@ if __name__ == '__main__':
     enddate = time.strftime('%Y-%m-%d',time.localtime(time.time()-24*3600))
     get_request(words[0],startdate,enddate,headers,browser)
     browser.close()
-
-    # joint(words[0])
+    '''
+    joint(words[0])
 
 
 
