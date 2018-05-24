@@ -173,7 +173,7 @@ def webdriver_generate():  # 自动化测试工具。它支持各种浏览器，
 def get_request(word, startdate, enddate,headers,browser,word_path):
     save_path = word_path
     myThrottle.wait('http://index.baidu.com')
-    browser.get('http://index.baidu.com/?tpl=trend&%s'%(urllib.parse.urlencode({'word':word})))
+    browser.get('http://index.baidu.com/?tpl=trend&%s'%(urllib.parse.urlencode({'word':word.encode('gb2312')})))
     res1 = browser.execute_script('return PPval.ppt')
     res2 = browser.execute_script('return PPval.res2')
     url = 'http://index.baidu.com/Interface/Search/getSubIndex/'

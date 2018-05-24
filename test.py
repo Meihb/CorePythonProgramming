@@ -58,8 +58,12 @@ import  time
 tss1 = '2013-10-10 23:40:00'
 tm = time.strptime(tss1, '%Y-%m-%d %H:%M:%S')
 
+import urllib
 from urllib import parse
 url = 'www.baidu.com'
 word = '贪玩蓝月'
-print(parse.urlencode({'word':word}))
-print()
+
+
+
+# print(parse.urlencode({'word':word}))
+print('http://index.baidu.com/?tpl=trend&%s'%(parse.urlencode({'word':word.encode('gb2312')})))
