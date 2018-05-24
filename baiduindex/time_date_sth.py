@@ -29,16 +29,32 @@ def baidu_index_datetime(enddate):
     #     i+=1
     # return True
 
+
+
+def baidu_index_date_generator(begin,end):
+    endtimestamp = time.mktime(time.strptime(end,'%Y-%m-%d'))
+    while True:
+        temp_end = get_weekday(6, begin)
+        if(time.mktime(time.strptime(temp_end,'%Y-%m-%d'))) > endtimestamp:#计算日期段结尾已超过deadline,结算按照deadline计算,并退出循环
+            yield {'start':begin,'end':end}
+            break
+        else:
+            yield {'start':begin,'end':temp_end}
+            begin = time_intverl(temp_end,24*3600)
 def test_time():
+
+    print(type(time.strftime('%Y-%m-%d')))
+    print(type(datetime.date.today()))
+    #time.strftime()和datetime.date.today() 的返回结果不同,前者是字符串,后者是 object
     enddate = '2018-05-23'
     timearray = time.strptime(enddate, '%Y-%m-%d')
-    print(timearray)
+    print(timearray)#time.struct_time(tm_year=2018, tm_mon=5, tm_mday=23, tm_hour=0, tm_min=0, tm_sec=0, tm_wday=2, tm_yday=143, tm_isdst=-1)
     timestamp = time.mktime(timearray)
-    print(int(timestamp))
+    print(int(timestamp))#1527004800
     timelocal = time.localtime(timestamp + 7 * 24 * 3600)
-    print(timelocal)
+    print(timelocal)#time.struct_time(tm_year=2018, tm_mon=5, tm_mday=30, tm_hour=0, tm_min=0, tm_sec=0, tm_wday=2, tm_yday=150, tm_isdst=0)
     new_date = time.strftime('%Y-%m-%d', timelocal)
-    print(new_date)
+    print(new_date)#2018-05-30
 
 def time_intverl(start,interval):
     return time.strftime('%Y-%m-%d',time.localtime(time.mktime(time.strptime(start,'%Y-%m-%d'))+int(interval)))
@@ -51,11 +67,15 @@ def get_weekday(weekday,offsetdate = '2011-01-01'):
 
 if __name__=='__main__':
     # y = baidu_index_datetime('2018-05-22')
-    # i=0
-    # while i<388:
-    #     try:
-    #         print(next(y))
-    #         i += 1
-    #     except StopIteration:
-    #         pass
-    print(get_weekday(7))
+    y = baidu_index_date_generator('2011-01-01','2018-05-23')
+    i=0
+    while i<388:
+        try:
+            row_date = next(y)
+            print(row_date.get('start'))
+            i += 1
+        except StopIteration:
+            pass
+    # print(get_weekday(6))
+    # test_time()
+    # print(time_intverl(time.strftime('%Y-%m-%d'),-24*3600))
