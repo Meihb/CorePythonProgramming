@@ -20,9 +20,8 @@ save_path = r'D:\download\baiduINdex'+time.strftime('%Y-%m-%d %H%M')
 
 chromeDriver = r'C:\Program Files (x86)\Google\Chrome\Application\chromedriver.exe'  # chromedriver路径
 tesseract_exe = r'D:\software\dev\Tesseract-OCR\tesseract.exe'  # tesseract.exe路径
-# bd_account = '13851020274'  # 百度账号
-# bd_pwd = 'mhb12121992'  # 百度密码
-bd_account = '佐々鼬'  # 百度账号
+bd_account = '13851020274'  # 百度账号
+# bd_account='19921625136'
 bd_pwd = 'mhb12121992'  # 百度密码
 
 
@@ -53,6 +52,11 @@ class Throttle():
         else:
             pass
         self.domains[domain] = time.time()
+
+class WordNotPrepared(Exception):
+    def __init__(self,err='word not prepared'):
+        Exception.__init__(self,err)
+        self.word = word
 def mysqlConn():
     host = '118.25.41.135'
     port = 3306
@@ -85,6 +89,7 @@ def prep_cookies():
     browser.get('http://index.baidu.com/?tpl=trend')  # 接下来需等待chrome启动和页面加载,如果不等待，下面的语句会出现找不到元素的错误
     # time.sleep(5)#强制等待,最简单的等待方法,强制等待,浪费资源,且不知何时才能正确执行,则命中率低
     # browser.implicitly_wait(10)#隐性等待,设置最长等待时间,若页面所有资源在时间内完成加载,则停止等待,较高的时间利用率,但是是否需要页面全部加载的问题浮现
+    time.sleep(60)
     try:  # 显性等待,通过until/until_not 实现自定义的目标
         WebDriverWait(browser, 10, 0.5).until(EC.visibility_of_element_located((By.ID, 'TANGRAM__PSP_4__userName')))
         # WebDriverWait(browser, 10, 0.5).until(lambda driver: driver.find_element_by_class_name('lb'))
@@ -95,12 +100,19 @@ def prep_cookies():
 
         browser.find_element_by_id('TANGRAM__PSP_4__submit').submit()  # 确认登录
 
-        time.sleep(9)#添加延迟以保证cookie获取完全
+        if browser.find_element_by_id('TANGRAM__PSP_4__verifyCodeImg'):
+            #存在验证码，手动填写
+            time.sleep(9)
+
+        time.sleep(3)#添加延迟以保证cookie获取完全
         cookies = browser.get_cookies()
         new_cookies = ''
         for cookie in cookies:
             new_cookies += cookie['name'] + '=' + cookie['value'] + ';'
         new_cookies = new_cookies[:-1]  # 去掉末尾;
+
+        print(cookies)
+        # exit()
         return new_cookies,browser
     except  NoSuchElementException as e:
         print('111' + e.msg)
@@ -174,14 +186,21 @@ def get_request(word, startdate, enddate,headers,browser,word_path):
     save_path = word_path
     myThrottle.wait('http://index.baidu.com')
     browser.get('http://index.baidu.com/?tpl=trend&%s'%(urllib.parse.urlencode({'word':word.encode('gb2312')})))
+
+    PPval = browser.execute_script('return PPval')
     res1 = browser.execute_script('return PPval.ppt')
     res2 = browser.execute_script('return PPval.res2')
+
+    if  not res1 or not res2:
+        raise WordNotPrepared()
+
     url = 'http://index.baidu.com/Interface/Search/getSubIndex/'
 
 
     myThrottle.wait('http://index.baidu.com')
     req = requests.get(url,params={'res':res1,'res2':res2,'word':word.encode('utf8'),'startdate':startdate,'enddate':enddate,'forecast':0},headers=headers)
 
+    print(req.json())
     res3_list = req.json()['data']['all'][0]['userIndexes_enc']
     res3_list = res3_list.split(',')
 
@@ -205,7 +224,7 @@ def get_request(word, startdate, enddate,headers,browser,word_path):
                 with open('%s\\%s.png' % (save_path, m), 'wb') as file:
                     file.write(img_content.content)
 
-                row_date = next(baidu_generator)
+                row_date = get_row_date()
                 cur.execute('INSERT INTO `baidu_index` (dir,word,width,margin_left,img_url,location,time,refer_date_begin,refer_date_end) '
                             'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)',
                             [
@@ -291,7 +310,14 @@ def baidu_index_date_generator(begin,end):
             yield {'start':begin,'end':temp_end}
             begin = time_intverl(temp_end,24*3600)
 
-
+def get_row_date():
+    global  baidu_generator
+    try:
+        row_date = next(baidu_generator)
+    except StopIteration:
+        baidu_generator = baidu_index_date_generator('2011-01-01', time_intverl(time.strftime('%Y-%m-%d'), -24 * 3600))
+        row_date = next(baidu_generator)
+    return row_date
 
 if __name__ == '__main__':
     # words = ['s','百年孤独','rng']
@@ -330,12 +356,22 @@ if __name__ == '__main__':
                 cur.execute('UPDATE baidu_index_words SET flag = 1,datetime = %s WHERE id = %s ',[time.strftime('%Y-%m-%d %H:%M:%S'),id])
                 conn.commit()
                 # joint(word)
-            except Exception as e:
-                print(e)
+            except WordNotPrepared as e:
+                print('here')
+                cur.execute('UPDATE baidu_index_words SET flag = -1,datetime = %s WHERE id = %s ',
+                            [time.strftime('%Y-%m-%d %H:%M:%S'), id])#未收录
+                conn.commit()
+            except  Exception as e:
+                if not isinstance(e,WordNotPrepared):
+                    traceback.print_exc()
+                    print('we should break')
+                    print(e)
+                    time.sleep(40)
+                # break
         else:
             break
 
-    browser.close()
+    # browser.close()
 
 
     # joint(words[0])

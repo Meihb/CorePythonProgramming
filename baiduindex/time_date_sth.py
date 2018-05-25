@@ -65,17 +65,24 @@ def get_weekday(weekday,offsetdate = '2011-01-01'):
     offsetdate = datetime.date.fromtimestamp(timestamp)
     return time.strftime("%Y-%m-%d",time.localtime((weekday-offsetdate.isoweekday())%7*3600*24+timestamp))
 
+def get_row_date():
+    global  baidu_generator
+    try:
+        row_date = next(baidu_generator)
+    except StopIteration:
+        baidu_generator = baidu_index_date_generator('2011-01-01', time_intverl(time.strftime('%Y-%m-%d'), -24 * 3600))
+        row_date = next(baidu_generator)
+    return row_date
+
 if __name__=='__main__':
     # y = baidu_index_datetime('2018-05-22')
-    y = baidu_index_date_generator('2011-01-01','2018-05-23')
+    # print(time.strftime("%Y-%m-%d",time.localtime(int(time.time())-24*3600)))
+    baidu_generator = baidu_index_date_generator('2011-01-01',time.strftime("%Y-%m-%d",time.localtime(int(time.time())-24*3600)))
     i=0
-    while i<388:
-        try:
-            row_date = next(y)
-            print(row_date.get('start'))
-            i += 1
-        except StopIteration:
-            pass
+    while i<484:
+        print(get_row_date())
+        i+=1
+
     # print(get_weekday(6))
     # test_time()
     # print(time_intverl(time.strftime('%Y-%m-%d'),-24*3600))

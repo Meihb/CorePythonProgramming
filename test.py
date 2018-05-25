@@ -61,9 +61,25 @@ tm = time.strptime(tss1, '%Y-%m-%d %H:%M:%S')
 import urllib
 from urllib import parse
 url = 'www.baidu.com'
-word = '贪玩蓝月'
+word = '超级女神之光'
 
 
 
 # print(parse.urlencode({'word':word}))
-print('http://index.baidu.com/?tpl=trend&%s'%(parse.urlencode({'word':word.encode('gb2312')})))
+# print('http://index.baidu.com/?tpl=trend&%s'%(parse.urlencode({'word':word.encode('gb2312')})))
+
+
+class wordException(Exception):
+    def __init__(self,err='word not prepared'):
+        Exception.__init__(self,err)
+
+
+try:
+    raise wordException()
+except wordException as e:
+    print(e)
+except Exception as e:
+    print('hehe')
+    print(isinstance(e,wordException))
+finally:
+    print('finally')
