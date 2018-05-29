@@ -8,7 +8,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from PIL import Image
 import requests
-import time,datetime
+import time, datetime
 import re
 import urllib
 import pytesseract
@@ -16,7 +16,7 @@ import traceback
 import os
 import pymysql
 
-save_path = r'D:\download\baiduINdex'+time.strftime('%Y-%m-%d %H%M')
+save_path = r'D:\download\baiduINdex' + time.strftime('%Y-%m-%d %H%M')
 
 chromeDriver = r'C:\Program Files (x86)\Google\Chrome\Application\chromedriver.exe'  # chromedriver路径
 tesseract_exe = r'D:\software\dev\Tesseract-OCR\tesseract.exe'  # tesseract.exe路径
@@ -24,9 +24,8 @@ bd_account = '13851020274'  # 百度账号
 # bd_account='19921625136'
 bd_pwd = 'mhb12121992'  # 百度密码
 
-
-
 bd_url = 'http://index.baidu.com/?tpl=trend'
+
 
 class Throttle():
     '''
@@ -44,7 +43,7 @@ class Throttle():
         # print(domain.netloc)
         print(self.domains)
         if self.domains.get(domain):
-            last_access_interval = self.delay-(time.time() - self.domains.get(domain) )
+            last_access_interval = self.delay - (time.time() - self.domains.get(domain))
             print(last_access_interval)
             if last_access_interval > 0:
                 print('sleep for %ss' % (last_access_interval))
@@ -53,22 +52,29 @@ class Throttle():
             pass
         self.domains[domain] = time.time()
 
+
 class WordNotPrepared(Exception):
-    def __init__(self,err='word not prepared'):
-        Exception.__init__(self,err)
+    def __init__(self, err='word not prepared'):
+        Exception.__init__(self, err)
         self.word = word
+
+
 def mysqlConn():
     host = '118.25.41.135'
     port = 3306
     user = 'dwts'
     pwd = 'dwts'
     # 创建连接
-    conn = pymysql.connect(host=host, user=user, passwd=pwd, port=port, charset='utf8mb4',db='dwts')
+    conn = pymysql.connect(host=host, user=user, passwd=pwd, port=port, charset='utf8mb4', db='dwts')
 
     # 建立游标,修改默认元组数据为字典类型
     cur = conn.cursor(cursor=pymysql.cursors.DictCursor)
-    return conn,cur
-conn,cur = mysqlConn()
+    return conn, cur
+
+
+conn, cur = mysqlConn()
+
+
 # type 1 input;2 import 初始化关键词
 def get_keywords(type=1, *args):
     keywords = []
@@ -101,10 +107,10 @@ def prep_cookies():
         browser.find_element_by_id('TANGRAM__PSP_4__submit').submit()  # 确认登录
 
         if browser.find_element_by_id('TANGRAM__PSP_4__verifyCodeImg'):
-            #存在验证码，手动填写
+            # 存在验证码，手动填写
             time.sleep(9)
 
-        time.sleep(3)#添加延迟以保证cookie获取完全
+        time.sleep(3)  # 添加延迟以保证cookie获取完全
         cookies = browser.get_cookies()
         new_cookies = ''
         for cookie in cookies:
@@ -113,7 +119,7 @@ def prep_cookies():
 
         print(cookies)
         # exit()
-        return new_cookies,browser
+        return new_cookies, browser
     except  NoSuchElementException as e:
         print('111' + e.msg)
         exit()
@@ -123,6 +129,7 @@ def prep_cookies():
     except TimeoutException as e:
         print('333' + e.msg)
         exit()
+
 
 # chrome 启动!
 def webdriver_generate():  # 自动化测试工具。它支持各种浏览器，包括 Chrome，Safari，Firefox 等主流界面式浏览器，如果你在这些浏览器里面安装一个 Selenium 的插件，那么便可以方便地实现Web界面的测试。换句话说叫 Selenium 支持这些浏览器驱动
@@ -182,13 +189,15 @@ def webdriver_generate():  # 自动化测试工具。它支持各种浏览器，
 '''
 获取关键字数据,保存原始图片，百度指数从20110101开始,在'全部'模式下,每周统计一次,前期可有数据缺失,需根据数据长度计算初始值
 '''
-def get_request(word, startdate, enddate,headers,browser,word_path):
+
+
+def get_request(word, startdate, enddate, headers, browser, word_path):
     save_path = word_path
     myThrottle.wait('http://index.baidu.com')
-    browser.get('http://index.baidu.com/?tpl=trend&%s'%(urllib.parse.urlencode({'word':word.encode('gb2312')})))
+    browser.get('http://index.baidu.com/?tpl=trend&%s' % (urllib.parse.urlencode({'word': word.encode('gb2312')})))
 
     PPval = browser.execute_script('return PPval')
-    print(PPval,type(PPval))
+    print(PPval, type(PPval))
 
     res1 = PPval['ppt']
     res2 = PPval['res2']
@@ -196,25 +205,25 @@ def get_request(word, startdate, enddate,headers,browser,word_path):
     # res1 = browser.execute_script('return PPval.ppt')
     # res2 = browser.execute_script('return PPval.res2')
 
-
-
     url = 'http://index.baidu.com/Interface/Search/getSubIndex/'
 
-
     myThrottle.wait('http://index.baidu.com')
-    req = requests.get(url,params={'res':res1,'res2':res2,'word':word.encode('utf8'),'startdate':startdate,'enddate':enddate,'forecast':0},headers=headers)
+    req = requests.get(url, params={'res': res1, 'res2': res2, 'word': word.encode('utf8'), 'startdate': startdate,
+                                    'enddate': enddate, 'forecast': 0}, headers=headers)
 
     print(req.json())
     res3_list = req.json()['data']['all'][0]['userIndexes_enc']
     res3_list = res3_list.split(',')
 
-    m=0
+    m = 0
     range_dict = []
     for res3 in res3_list:
         timestamp = int(time.time())
         try:
             myThrottle.wait('http://index.baidu.com')
-            req = requests.get('http://index.baidu.com/Interface/IndexShow/show/',params={'res':res1,'res2':res2,'classType':1,'res3[]':res3,'className':'view-value%s'%(timestamp)},headers=headers).json()
+            req = requests.get('http://index.baidu.com/Interface/IndexShow/show/',
+                               params={'res': res1, 'res2': res2, 'classType': 1, 'res3[]': res3,
+                                       'className': 'view-value%s' % (timestamp)}, headers=headers).json()
             response = req['data']['code'][0]
             width = re.findall('width:(.*?)px', response)
             margin_left = re.findall('margin-left:-(.*?)px', response)
@@ -229,24 +238,28 @@ def get_request(word, startdate, enddate,headers,browser,word_path):
                     file.write(img_content.content)
 
                 row_date = get_row_date()
-                cur.execute('INSERT INTO `baidu_index` (dir,word,width,margin_left,img_url,location,time,refer_date_begin,refer_date_end) '
-                            'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)',
-                            [
-                                save_path,word,','.join(width),','.join(margin_left),img_url,r'%s\%s.png'%(save_path,m),
-                             time.strftime('%Y-%m-%d %H:%M:%S'),row_date.get('start'),row_date.get('end')
-                            ]
-                            )
+                cur.execute(
+                    'INSERT INTO `baidu_index` (dir,word,width,margin_left,img_url,location,time,refer_date_begin,refer_date_end) '
+                    'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                    [
+                        save_path, word, ','.join(width), ','.join(margin_left), img_url, r'%s\%s.png' % (save_path, m),
+                        time.strftime('%Y-%m-%d %H:%M:%S'), row_date.get('start'), row_date.get('end')
+                    ]
+                    )
                 conn.commit()
             m += 1
         except:
             traceback.print_exc()
     # conn.commit()
 
+
 '''
 拼接图片
 '''
+
+
 def joint(word):
-    cur.execute('SELECT * FROM  `baidu_index` WHERE word=(%s)',[word])
+    cur.execute('SELECT * FROM  `baidu_index` WHERE word=(%s)', [word])
     infos = cur.fetchall()
     for info in infos:
         width = [int(x) for x in info['width'].split(',')]
@@ -274,10 +287,25 @@ def joint(word):
     conn.commit()
 
 
+def dameonize_joint():
+    while True:
+        row_info = cur.execute(
+            'SELECT id,location FROM baidu_index WHERE process_status = 0 ORDER BY id ASC  LIMIT 1  ')
+
+        try:
+            cur.execute('UPDATE `baidu_index` SET process_status = -1 WHERE 1')#修改状态
+            conn.commit()
+        except :
+            cur.execute('UPDATE `baidu_index` SET process_status'  )
+            traceback.print_exc()
+
+
 '''图片识别'''
-def img_recognition(save_dir,index):
+
+
+def img_recognition(save_dir, index):
     pytesseract.pytesseract.tesseract_cmd = tesseract_exe
-    jpgzoom = Image.open(r'%s\Puzzle%s.png'%(save_dir,index))
+    jpgzoom = Image.open(r'%s\Puzzle%s.png' % (save_dir, index))
     # print(type(jpgzoom))
     (x, y) = jpgzoom.size
     x_s = 4 * x
@@ -287,35 +315,48 @@ def img_recognition(save_dir,index):
     out.save('%s/zoom%s.jpg' % (save_dir, index), quality=95)
     num = pytesseract.image_to_string(out)
     if num:
-        num = num.replace("'", '').replace('.', '').replace(',', '').replace('?', '7').replace("S",'5').replace(" ","").replace("E", "8").replace("B", "8").replace("I", "1").replace("$", "8")
+        num = num.replace("'", '').replace('.', '').replace(',', '').replace('?', '7').replace("S", '5').replace(" ",
+                                                                                                                 "").replace(
+            "E", "8").replace("B", "8").replace("I", "1").replace("$", "8")
     else:
         num = ''
     print(num)
     return int(num)
+
+
 '''获取指定日期之后第一个指定周天(1-7分指周一至周日)'''
-def get_weekday(weekday,offsetdate = '2011-01-01'):
-    timestamp = time.mktime(time.strptime(offsetdate,'%Y-%m-%d'))
+
+
+def get_weekday(weekday, offsetdate='2011-01-01'):
+    timestamp = time.mktime(time.strptime(offsetdate, '%Y-%m-%d'))
     offsetdate = datetime.date.fromtimestamp(timestamp)
-    return time.strftime("%Y-%m-%d",time.localtime((weekday-offsetdate.isoweekday())%7*3600*24+timestamp))
+    return time.strftime("%Y-%m-%d", time.localtime((weekday - offsetdate.isoweekday()) % 7 * 3600 * 24 + timestamp))
+
 
 '''时间戳增减计算'''
-def time_intverl(start,interval):
-    return time.strftime('%Y-%m-%d',time.localtime(time.mktime(time.strptime(start,'%Y-%m-%d'))+int(interval)))
+
+
+def time_intverl(start, interval):
+    return time.strftime('%Y-%m-%d', time.localtime(time.mktime(time.strptime(start, '%Y-%m-%d')) + int(interval)))
+
 
 '''百度时间分段生成器'''
-def baidu_index_date_generator(begin,end):
-    endtimestamp = time.mktime(time.strptime(end,'%Y-%m-%d'))
+
+
+def baidu_index_date_generator(begin, end):
+    endtimestamp = time.mktime(time.strptime(end, '%Y-%m-%d'))
     while True:
         temp_end = get_weekday(6, begin)
-        if(time.mktime(time.strptime(temp_end,'%Y-%m-%d'))) > endtimestamp:#计算日期段结尾已超过deadline,结算按照deadline计算,并退出循环
-            yield {'start':begin,'end':end}
+        if (time.mktime(time.strptime(temp_end, '%Y-%m-%d'))) > endtimestamp:  # 计算日期段结尾已超过deadline,结算按照deadline计算,并退出循环
+            yield {'start': begin, 'end': end}
             break
         else:
-            yield {'start':begin,'end':temp_end}
-            begin = time_intverl(temp_end,24*3600)
+            yield {'start': begin, 'end': temp_end}
+            begin = time_intverl(temp_end, 24 * 3600)
+
 
 def get_row_date():
-    global  baidu_generator
+    global baidu_generator
     try:
         row_date = next(baidu_generator)
     except StopIteration:
@@ -323,12 +364,13 @@ def get_row_date():
         row_date = next(baidu_generator)
     return row_date
 
+
 if __name__ == '__main__':
     # words = ['s','百年孤独','rng']
     myThrottle = Throttle(1)
     baidu_generator = baidu_index_date_generator('2011-01-01', time_intverl(time.strftime('%Y-%m-%d'), -24 * 3600))
 
-    cookies_string,browser = prep_cookies()
+    cookies_string, browser = prep_cookies()
     headers = {
         'Host': 'index.baidu.com',
         'Connection': 'keep-alive',
@@ -344,11 +386,11 @@ if __name__ == '__main__':
         cur.execute("SELECT id,word  FROM baidu_index_words WHERE flag = 0 ORDER BY id ASC  LIMIT 1")
         word_info = cur.fetchall()
         print(word_info)
-        if  word_info:
+        if word_info:
             word = word_info[0]['word']
             id = word_info[0]['id']
-            print('settle %s'%word)
-            word_path = '%s_%s'%(save_path,word)
+            print('settle %s' % word)
+            word_path = '%s_%s' % (save_path, word)
             if not os.path.exists(word_path):
                 os.mkdir(word_path)
             # browser.get('http://index.baidu.com/?tpl=trend&word=%s' % (word))
@@ -357,16 +399,17 @@ if __name__ == '__main__':
             enddate = time.strftime('%Y-%m-%d', time.localtime(time.time() - 24 * 3600))
             try:
                 get_request(word, startdate, enddate, headers, browser, word_path)
-                cur.execute('UPDATE baidu_index_words SET flag = 1,datetime = %s WHERE id = %s ',[time.strftime('%Y-%m-%d %H:%M:%S'),id])
+                cur.execute('UPDATE baidu_index_words SET flag = 1,datetime = %s WHERE id = %s ',
+                            [time.strftime('%Y-%m-%d %H:%M:%S'), id])
                 conn.commit()
                 # joint(word)
             except KeyError as e:
                 traceback.print_exc()
                 cur.execute('UPDATE baidu_index_words SET flag = -1,datetime = %s WHERE id = %s ',
-                            [time.strftime('%Y-%m-%d %H:%M:%S'), id])#未收录
+                            [time.strftime('%Y-%m-%d %H:%M:%S'), id])  # 未收录
                 conn.commit()
             except  Exception as e:
-                if not isinstance(e,KeyError):
+                if not isinstance(e, KeyError):
                     traceback.print_exc()
                     print('we should break')
                     print(e)
@@ -376,9 +419,4 @@ if __name__ == '__main__':
 
     # browser.close()
 
-
     # joint(words[0])
-
-
-
-
