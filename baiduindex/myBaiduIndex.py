@@ -194,6 +194,7 @@ def get_request_period(word, headers, browser):
     myThrottle.wait('http://index.baidu.com')
     browser.get('http://index.baidu.com/?tpl=trend&%s' % (urllib.parse.urlencode({'word': word.encode('gb2312')})))
 
+    browser.implicitly_wait(3)
     PPval = browser.execute_script('return PPval')
     print(PPval, type(PPval))
 
@@ -219,9 +220,20 @@ def get_request_period(word, headers, browser):
 
 
 def get_request(word, startdate, enddate, headers, word_path, browser):
+    '''
+
+    :param word:
+    :param startdate:
+    :param enddate:
+    :param headers:
+    :param word_path:
+    :param browser:
+    :return:
+    '''
     save_path = word_path
     myThrottle.wait('http://index.baidu.com')
     browser.get('http://index.baidu.com/?tpl=trend&%s' % (urllib.parse.urlencode({'word': word.encode('gb2312')})))
+    browser.implicitly_wait(3)
 
     PPval = browser.execute_script('return PPval')
     print(PPval, type(PPval))
@@ -238,8 +250,15 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
     req = requests.get(url, params={'res': res1, 'res2': res2, 'word': word.encode('utf8'), 'startdate': startdate,
                                     'enddate': enddate, 'forecast': 0}, headers=headers)
 
-    res3_list = req.json()['data']['all'][0]['userIndexes_enc']
-    res3_list = res3_list.split(',')
+
+    if date_comparision(startdate,'2011-01-01')=='2011-01-01':
+        print('pc res3 selected')
+        res3_list = req.json()['data']['pc'][0]['userIndexes_enc']
+        res3_list = res3_list.split(',')
+    else:
+        print('all res3 selected')
+        res3_list = req.json()['data']['all'][0]['userIndexes_enc']
+        res3_list = res3_list.split(',')
 
     print(res3_list)
     print(len(res3_list))
@@ -266,7 +285,7 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
             img_content = requests.get(img_url, headers=headers)
             time.sleep(1.5)
             if img_content.status_code == requests.codes.ok:
-                with open('%s\\%s.png' % (save_path, m), 'wb') as file:
+                with open('%s\\%s.png' % (save_path, temp_date), 'wb') as file:
                     file.write(img_content.content)
 
                 # row_date = get_row_date()
@@ -274,11 +293,12 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
                     'INSERT INTO `baidu_index` (dir,word,width,margin_left,img_url,location,time,refer_date_begin,refer_date_end) '
                     'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)',
                     [
-                        save_path, word, ','.join(width), ','.join(margin_left), img_url, r'%s\%s.png' % (save_path, m),
+                        save_path, word, ','.join(width), ','.join(margin_left), img_url,
+                        r'%s\%s.png' % (save_path, temp_date),
                         time.strftime('%Y-%m-%d %H:%M:%S'), temp_date, temp_date
                     ]
                 )
-                myRedis.push(redis_name, '%s|%s' % (cur.lastrowid, r'%s\%s.png' % (save_path, m)))
+                myRedis.push(redis_name, '%s|%s' % (cur.lastrowid, r'%s\%s.png' % (save_path, temp_date)))
                 conn.commit()
 
         except:
@@ -287,8 +307,6 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
             m += 1
             temp_date = time_intverl(temp_date, 24 * 3600)
     # conn.commit()
-
-
 '''
 拼接图片
 '''
@@ -439,6 +457,38 @@ def enddate_generator(period_begin, period_end, step=24 * 3600 * 360):
             break
 
 
+def split_date(start, end):
+    '''
+    限制start>=pc_start,end<=yesterday,且end>=start
+    共四种情况
+      start                                                        end                                                                              result
+    pc_start<=start<all-start                pc_start<end<all_start                             start-end   +[]
+                                                                    all_start<end                                                     start-pc_end + all_start-end
+    start>=all_start                            all_start<end                                                           []                     +  start-end
+    :param start >2006-06-01:
+    :param end:
+    :return:
+    '''
+    # pc_start = '2006-06-01'
+    pc_end = '2010-12-31'
+    all_start = '2011-01-01'
+
+    pc_result = []
+    all_result = []
+    if date_comparision(all_start, start) == all_start:  # 起始时间低于all_start
+        pc_result.append(start)
+        if date_comparision(end, all_start) == all_start:#结束时间同样低于all_start
+            pc_result.append(end)
+        else:#结束时间高于all_start
+            pc_result.append(pc_end)
+            all_result.append(all_start)
+            all_result.append(end)
+    else:#起始时间高于all_start
+        all_result.append(start)
+        all_result.append(end)
+    return pc_result, all_result
+
+
 if __name__ == '__main__':
     # words = ['s','百年孤独','rng']
     myThrottle = Throttle(1)
@@ -456,11 +506,10 @@ if __name__ == '__main__':
         'Accept-Language': 'zh-CN,zh;q=0.9',
         'Cookie': cookies_string
     }
-    myRedis = redisConn.myRedisQueue('118.25.41.135',6379,'mhbredis',db=5)
+    myRedis = redisConn.myRedisQueue('118.25.41.135', 6379, 'mhbredis', db=5)
     redis_name = 'baidu_index'
-    myRedis.push(redis_name,'')
     while True:
-        cur.execute("SELECT id,word  FROM baidu_index_words WHERE flag = 0 ORDER BY id ASC  LIMIT 1")
+        cur.execute("SELECT id,word,start,end  FROM baidu_index_words WHERE flag = 0 ORDER BY id ASC  LIMIT 1")
         word_info = cur.fetchall()
         print(word_info)
         if word_info:
@@ -470,36 +519,83 @@ if __name__ == '__main__':
             word_path = '%s_%s' % (save_path, word)
             if not os.path.exists(word_path):
                 os.mkdir(word_path)
-            # browser.get('http://index.baidu.com/?tpl=trend&word=%s' % (word))
-
-            startdate = '2001-01-01'
-            enddate = time.strftime('%Y-%m-%d', time.localtime(time.time() - 24 * 3600))
+            # 据观察,2006-06-01开启,pc趋势具备数据,自2011-01-01之后,移动趋势具备数据,则
+            startdate = str(word_info[0]['start'])#mysql date返回的是个date对象
+            enddate = str(word_info[0]['end'])
             # baidu_index_date_generator_v2(startdate, enddate)
             try:
-                period, res1, res2 = get_request_period(word, headers, browser)
-                startdate = date_comparision(startdate, period[0], 1)
+                startdate = date_comparision(startdate,'2006-06-01')#限定日期至少大于2006-06-01
+                enddate = date_comparision(enddate,time_intverl(time.strftime('%Y-%m-%d'),-24*3600),-1)#限定日期不大于昨日
+
+                # period, res1, res2 = get_request_period(word, headers, browser)
+                # startdate = date_comparision(startdate, period[0], 1)
+                pc_period,all_period = split_date(startdate,enddate)
+                print(pc_period,all_period)
+
                 enddate_g = enddate_generator(startdate, enddate)
+                if  pc_period:#PC任务存在
+                    print('start pc 任务 from %s to %s'%(pc_period[0],pc_period[1]))
+                    pc_generator = enddate_generator(pc_period[0], pc_period[1])
+                    while True:
+                        try:
+                            period_info = next(pc_generator)
+                            period_start = period_info[0]
+                            period_end = period_info[1]
+                            print(period_info)
+                            # 处理文件
+                            get_request(word, period_start, period_end, headers, word_path, browser)
+                        except StopIteration:
+                            print('date all done')
+                            break
+                        except Exception as e:
+                            if not isinstance(e, StopIteration):
+                                traceback.print_exc()
+                                print('we should break')
+                                print(e)
+                                break
+                if all_period:#整体任务存在
+                    print('start 整体人物  from %s to %s' % (all_period[0], all_period[1]))
+                    all_generator = enddate_generator(all_period[0], all_period[1])
+                    while True:
+                        try:
+                            period_info = next(all_generator)
+                            period_start = period_info[0]
+                            period_end = period_info[1]
+                            print(period_info)
+                            # 处理文件
+                            get_request(word, period_start, period_end, headers, word_path, browser)
+                        except StopIteration:
+                            print('date all done')
+                            break
+                        except Exception as e:
+                            if not isinstance(e, StopIteration):
+                                traceback.print_exc()
+                                print('we should break')
+                                print(e)
+                                break
+
 
                 print('period confirmed  from %s to %s' % (startdate, enddate))
 
                 # 在已定时间段内,每次请求360时长以获取每日数据,循环
-                while True:
-                    try:
-                        period_info = next(enddate_g)
-                        period_start = period_info[0]
-                        period_end = period_info[1]
-                        print(period_info)
-                        # 处理文件
-                        get_request(word, period_start, period_end, headers, word_path, browser)
-                    except StopIteration:
-                        print('date all done')
-                        break
-                    except Exception as e:
-                        if not isinstance(e, StopIteration):
-                            traceback.print_exc()
-                            print('we should break')
-                            print(e)
-                            break
+                # while True:
+                #     try:
+                #         period_info = next(enddate_g)
+                #         period_start = period_info[0]
+                #         period_end = period_info[1]
+                #         print(period_info)
+                #         # 处理文件
+                #         break
+                #         get_request(word, period_start, period_end, headers, word_path, browser)
+                #     except StopIteration:
+                #         print('date all done')
+                #         break
+                #     except Exception as e:
+                #         if not isinstance(e, StopIteration):
+                #             traceback.print_exc()
+                #             print('we should break')
+                #             print(e)
+                #             break
             except KeyError as e:  # PPval未被定义res1,res2表现为该关键字未被收录,下一个
                 traceback.print_exc()
                 cur.execute('UPDATE baidu_index_words SET flag = -1,datetime = %s WHERE id = %s ',
@@ -512,6 +608,7 @@ if __name__ == '__main__':
                     print(e)
                 continue
             else:
+                break
                 '''更新当前关键字 标识'''
                 cur.execute('UPDATE baidu_index_words SET flag = 1,datetime = %s WHERE id = %s ',
                             [time.strftime('%Y-%m-%d %H:%M:%S'), id])

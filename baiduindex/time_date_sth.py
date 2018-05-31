@@ -48,7 +48,7 @@ def baidu_index_date_generator_v2(begin, end):
     begin_timestamp = time.mktime(time.strptime(begin, '%Y-%m-%d'))
     end_timestamp = time.mktime(time.strptime(end, '%Y-%m-%d'))
 
-    duration = int((end_timestamp - begin_timestamp)/(3600*24))#天数
+    duration = int((end_timestamp - begin_timestamp) / (3600 * 24))  # 天数
     print(duration)
 
 
@@ -82,6 +82,22 @@ def get_weekday(weekday, offsetdate='2011-01-01'):
     return time.strftime("%Y-%m-%d", time.localtime((weekday - offsetdate.isoweekday()) % 7 * 3600 * 24 + timestamp))
 
 
+# 日期比较大小
+def date_comparision(date1, date2, mode=1):
+    date1_timestamp = int(time.mktime(time.strptime(date1, '%Y-%m-%d')))
+    date2_timestamp = int(time.mktime(time.strptime(date2, '%Y-%m-%d')))
+    if (max(date1_timestamp, date2_timestamp) == date1_timestamp):
+        max_date = date1
+        min_date = date2
+    else:
+        max_date = date2
+        min_date = date1
+    if mode == 1:  # 比较较大值
+        return max_date
+    else:
+        return min_date
+
+
 def get_row_date():
     global baidu_generator
     try:
@@ -90,6 +106,39 @@ def get_row_date():
         baidu_generator = baidu_index_date_generator('2011-01-01', time_intverl(time.strftime('%Y-%m-%d'), -24 * 3600))
         row_date = next(baidu_generator)
     return row_date
+
+
+def split_date(start, end):
+    '''
+    限制start>=pc_start,end<=yesterday,且end>=start
+    共四种情况
+      start                                                        end                                                                              result
+    pc_start<=start<all-start                pc_start<end<all_start                             start-end   +[]
+                                                                    all_start<end                                                     start-pc_end + all_start-end
+    start>=all_start                            all_start<end                                                           []                     +  start-end
+    :param start >2006-06-01:
+    :param end:
+    :return:
+    '''
+    # pc_start = '2006-06-01'
+    pc_end = '2010-12-31'
+    all_start = '2011-01-01'
+
+    pc_result = []
+    all_result = []
+    if date_comparision(all_start, start) == all_start:  # 起始时间低于all_start
+        pc_result.append(start)
+        if date_comparision(end, all_start) == all_start:#结束时间同样低于all_start
+            pc_result.append(end)
+        else:#结束时间高于all_start
+            pc_result.append(pc_end)
+            all_result.append(all_start)
+            all_result.append(end)
+    else:#起始时间高于all_start
+        all_result.append(start)
+        all_result.append(end)
+    return pc_result, all_result
+
 
 
 if __name__ == '__main__':
@@ -107,6 +156,7 @@ if __name__ == '__main__':
     # start = '2011-02-03'
     # end = '2012-02-01'
     # baidu_index_date_generator_v2(start,end)
-    import  myBaiduIndex
+    import myBaiduIndex
 
-    print(time_intverl('2006-06-01',24*3600*625))
+    # print(time_intverl('2006-06-01', 24 * 3600 * 625))
+    print()

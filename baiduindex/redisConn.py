@@ -6,11 +6,11 @@ import  redis
 
 class myRedisQueue(object):
     '''
-    redis默认db数量为0-15,可在redis.conf中配置databases 16修改,密码在命令行中为 auth
+    redis默认db数量为0-15,可在redis.conf中配置databases 16修改,密码在命令行中为 auth,decode_responses=True修改默认bytes
     '''
     def __init__(self,host,port,pwd,db=1):
         object.__init__(self)
-        self.redis = redis.Redis(host=host,port=port,password=pwd,db=db)
+        self.redis = redis.Redis(host=host,port=port,password=pwd,db=db,decode_responses=True)
         self.redis.delete('back')
 
 
@@ -28,4 +28,5 @@ class myRedisQueue(object):
 if __name__=='__main__':
     # print(myRedisQueue)
     myQueue = myRedisQueue('118.25.41.135',6379,'mhbredis',db=0)
+
 
