@@ -14,6 +14,7 @@ class myRedisQueue(object):
         self.redis.delete('back')
 
 
+
     def push(self,name,value):
         return self.redis.lpush(name,value)
 

@@ -140,6 +140,24 @@ def split_date(start, end):
     return pc_result, all_result
 
 
+def date_duration(date1,date2):
+    date1_timestamp = time.mktime(time.strptime(date1,'%Y-%m-%d'))
+    date2_timestamp = time.mktime(time.strptime(date2,'%Y-%m-%d'))
+
+    return int((date2_timestamp-date1_timestamp)/(3600*24))
+
+# 每日跨度
+def enddate_generator(period_begin, period_end, step=24 * 3600 * 360):
+    temp_startdate = period_begin
+    while True:
+        temp_enddate = time_intverl(temp_startdate, step)
+        # print(temp_enddate,start_date)
+        if date_comparision(period_end, temp_enddate) == period_end:  # 未到时间の尽头
+            yield temp_startdate, temp_enddate
+            temp_startdate = time_intverl(temp_enddate, 24 * 3600)
+        else:  # now we are ONE!
+            yield temp_startdate, period_end
+            break
 
 if __name__ == '__main__':
     # y = baidu_index_datetime('2018-05-22')
@@ -159,4 +177,15 @@ if __name__ == '__main__':
     import myBaiduIndex
 
     # print(time_intverl('2006-06-01', 24 * 3600 * 625))
-    print()
+    # print(date_duration('2006-06-01','2018-05-31'))
+
+    g = enddate_generator('2006-06-01','2010-12-31')
+
+
+    while True:
+        try:
+            info = next(g)
+            print(info)
+        except StopIteration:
+            print('end')
+            break
