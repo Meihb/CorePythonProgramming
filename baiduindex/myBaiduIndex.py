@@ -7,7 +7,7 @@ from selenium.common.exceptions import NoSuchElementException, StaleElementRefer
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from PIL import Image
-import requests
+import requests,urllib3
 import time, datetime
 import re
 import urllib
@@ -57,8 +57,13 @@ class Throttle():
 class WordNotPrepared(Exception):
     def __init__(self, err='word not prepared'):
         Exception.__init__(self, err)
-        self.word = word
-
+        self.word = err
+class InternetException(Exception):
+    def __init__(self,start,end, err='internet disconnected'):
+        Exception.__init__(self, err)
+        self.word = err
+        self.start = start
+        self.end = end
 
 def mysqlConn():
     host = '118.25.41.135'
@@ -247,9 +252,27 @@ def get_request(word, startdate, enddate, headers, word_path, browser, myThrottl
 
     url = 'http://index.baidu.com/Interface/Search/getSubIndex/'
 
+    drivers_cookies = browser.get_cookies()
+    new_cookies = ""
+    for cookie in drivers_cookies:
+        new_cookies += cookie['name'] + '=' + cookie['value'] + ';'
+    new_cookies = new_cookies[:-1]  # 去掉末尾;
+    headers = {
+        'Host': 'index.baidu.com',
+        'Connection': 'keep-alive',
+        'Accept': '*/*',
+        'X-Requested-With': 'XMLHttpRequest',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.89 Safari/537.36',
+        'Referer': 'http://index.baidu.com/?tpl=trend&word=%CE%A4%B5%C2',
+        'Accept-Encoding': 'gzip, deflate',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+        'Cookie': new_cookies
+    }
+
+
     myThrottle.wait('http://index.baidu.com')
     req = requests.get(url, params={'res': res1, 'res2': res2, 'word': word.encode('utf8'), 'startdate': startdate,
-                                    'enddate': enddate, 'forecast': 0}, headers=headers)
+                                    'enddate': enddate, 'forecast': 0}, headers=headers,timeout=600)
 
     if date_comparision(startdate, '2011-01-01') == '2011-01-01':
         print('pc res3 selected')
@@ -273,8 +296,8 @@ def get_request(word, startdate, enddate, headers, word_path, browser, myThrottl
             myThrottle.wait('http://index.baidu.com')
             req = requests.get('http://index.baidu.com/Interface/IndexShow/show/',
                                params={'res': res1, 'res2': res2, 'classType': 1, 'res3[]': res3,
-                                       'className': 'view-value%s' % (timestamp)}, headers=headers).json()
-            print(req)
+                                       'className': 'view-value%s' % (timestamp)}, headers=headers,timeout=600).json()
+            print(temp_date,req)
             response = req['data']['code'][0]
             width = re.findall('width:(.*?)px', response)
             margin_left = re.findall('margin-left:-(.*?)px', response)
@@ -282,34 +305,40 @@ def get_request(word, startdate, enddate, headers, word_path, browser, myThrottl
             # margin_left = [int(x) for x in margin_left]
             range_dict.append({'width': width, 'margin_left': margin_left})
             img_url = 'http://index.baidu.com' + re.findall('url\("(.*?)"\)', response)[0]
-            img_content = requests.get(img_url, headers=headers)
-            time.sleep(1.5)
+            img_content = requests.get(img_url, headers=headers,timeout=60)
+            # time.sleep(1)
             if img_content.status_code == requests.codes.ok:
                 with open('%s\\%s.png' % (save_path, temp_date), 'wb') as file:
                     file.write(img_content.content)
 
-                # row_date = get_row_date()
-                # cur.execute(
-                #     'INSERT INTO `baidu_index` (dir,word,width,margin_left,img_url,location,time,refer_date_begin,refer_date_end) '
-                #     'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)',
-                #     [
-                #         save_path, word, ','.join(width), ','.join(margin_left), img_url,
-                #         r'%s\%s.png' % (save_path, temp_date),
-                #         time.strftime('%Y-%m-%d %H:%M:%S'), temp_date, temp_date
-                #     ]
-                # )
+                cur.execute(
+                    'INSERT INTO `baidu_index` (dir,word,width,margin_left,img_url,location,time,refer_date_begin,refer_date_end) '
+                    'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                    [
+                        save_path, word, ','.join(width), ','.join(margin_left), img_url,
+                        r'%s\%s.png' % (save_path, temp_date),
+                        time.strftime('%Y-%m-%d %H:%M:%S'), temp_date, temp_date
+                    ]
+                )
                 # conn.commit()
                 # dir|refer_date|width|margin_left|now|word
-                myRedis.push(redis_name, '%s|%s|%s|%s|%s|%s' % (
-                    save_path, temp_date, ','.join(width), ','.join(margin_left), time.strftime('%Y-%m-%d %H:%M:%S'),word))
-
-        except:
+                # myRedis.push(redis_name, '%s|%s|%s|%s|%s|%s' % (
+                #     save_path, temp_date, ','.join(width), ','.join(margin_left), time.strftime('%Y-%m-%d %H:%M:%S'),word))
+        except (requests.exceptions.ConnectionError,urllib3.exceptions.ProtocolError) as e:
+            traceback.print_exc()
+            conn.rollback()
+            raise InternetException(startdate,enddate)
+        except Exception as e:
+            if not isinstance(e,(requests.exceptions.ConnectionError,urllib3.exceptions.ProtocolError)):
+                pass
             traceback.print_exc()
         else:
             m += 1
             temp_date = time_intverl(temp_date, 24 * 3600)
         # myRedis.quit()
-    # conn.commit()
+
+    conn.commit()
+    return browser
 
 
 '''
@@ -363,24 +392,95 @@ def dameonize_joint():
 
 
 def img_recognition(save_dir, index):
+    # 二值化
+    threshold = 140
+    table = []
+    for i in range(256):
+        if i < threshold:
+            table.append(0)
+        else:
+            table.append(1)
+    # 对于识别成字母的 采用该表进行修正
+    reps = {'O': '0',
+           'I': '1', 'L': '1',
+           'Z': '2',
+           'S': '5',
+           '$':'8',
+           'C':'0',
+           'E':'8',
+           ' ':'',
+           "'":'',
+           '.':'',
+           '?':'7',
+           ',':'',
+           'B':'8'
+           }
     pytesseract.pytesseract.tesseract_cmd = tesseract_exe
     jpgzoom = Image.open(r'%s\Puzzle%s.png' % (save_dir, index))
+    # 转化到灰度图
+    jpgzoom = jpgzoom.convert('L')
+    # 二值化，采用阈值分割法，threshold为分割点
+    jpgzoom = jpgzoom.point(table, '1')
     # print(type(jpgzoom))
     (x, y) = jpgzoom.size
-    x_s = 4 * x
-    y_s = 4 * y
+    x_s = 2 * x
+    y_s = 2 * y
     out = jpgzoom.resize((x_s, y_s), Image.ANTIALIAS)
     # print(type(out))
-    out.save('%s/zoom%s.jpg' % (save_dir, index), quality=95)
-    num = pytesseract.image_to_string(out, config="-psm 7")
-    if num:
-        num = num.replace("'", '').replace('.', '').replace(',', '').replace('?', '7').replace("S", '5').replace(" ",
-                                                                                                                 "").replace(
-            "E", "8").replace("B", "8").replace("I", "1").replace("$", "8").replace('C', '0')
+    out_path = '%s/zoom%s.jpg' % (save_dir, index)
+    if os.path.exists(out_path):
+        os.remove(out_path)
+    out.save(out_path, quality=100)
+    flag = False
+    num =""
+    for i in range(7, 10):
+        num = pytesseract.image_to_string(out, config="--psm %s -c tessedit_char_whitelist='1234567890'" % (i,))
+        # print(num, type(num))
+        num = num.strip().upper()
+        print('psm i is %s' % (i), num)
+        try:
+            for rep in reps:
+                num = num.replace(rep, reps[rep])
+            num = int(num)
+        except:
+            continue
+        else:
+            flag = True
+            break
+    if not flag:
+        for i in range(0, 14):
+            num = pytesseract.image_to_string(out, config="--oem %s -c tessedit_char_whitelist='1234567890'" % (i,))
+            # print(num,type(num))
+            num = num.strip().upper()
+            print('oem i is %s' % (i), num)
+            try:
+                for rep in reps:
+                    num = num.replace(rep, reps[rep])
+                num = int(num)
+            except:
+                continue
+            else:
+                flag = True
+                break
+    if flag:
+        print('confirmed img %s recognized as %s' % (out_path, num))
+        return num
     else:
-        num = ''
-    print(num)
-    return num
+        print('not confirmed ')
+        return 'error'
+
+    # num = pytesseract.image_to_string(out, config="-psm 7 -c tessedit_char_whitelist=1234567890")
+    # num = num.strip().upper()
+    # for rep in reps:
+    #     num = num.replace(rep, reps[rep])
+    # if num:
+    #     num = num.replace("'", '').replace('.', '').replace(',', '').replace('?', '7').replace("S", '5').replace(" ",
+    #                                                                                                              "").replace(
+    #         "E", "8").replace("B", "8").replace("I", "1").replace("$", "8").replace('C', '0')
+    # else:
+    #     num = ''
+    # print(num)
+    # return num
 
 
 '''获取指定日期之后第一个指定周天(1-7分指周一至周日)'''
@@ -499,19 +599,31 @@ def process_request(myThrottle, redis_name):
     处理网络请求
     :return:
     '''
-    cookies_string, browser = prep_cookies()
-    headers = {
-        'Host': 'index.baidu.com',
-        'Connection': 'keep-alive',
-        'Accept': '*/*',
-        'X-Requested-With': 'XMLHttpRequest',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.89 Safari/537.36',
-        'Referer': 'http://index.baidu.com/?tpl=trend&word=%CE%A4%B5%C2',
-        'Accept-Encoding': 'gzip, deflate',
-        'Accept-Language': 'zh-CN,zh;q=0.9',
-        'Cookie': cookies_string
-    }
+    # cookies_string, browser = prep_cookies()
+    # headers = {
+    #     'Host': 'index.baidu.com',
+    #     'Connection': 'keep-alive',
+    #     'Accept': '*/*',
+    #     'X-Requested-With': 'XMLHttpRequest',
+    #     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.89 Safari/537.36',
+    #     'Referer': 'http://index.baidu.com/?tpl=trend&word=%CE%A4%B5%C2',
+    #     'Accept-Encoding': 'gzip, deflate',
+    #     'Accept-Language': 'zh-CN,zh;q=0.9',
+    #     'Cookie': cookies_string
+    # }
     while True:
+        cookies_string, browser = prep_cookies()
+        headers = {
+            'Host': 'index.baidu.com',
+            'Connection': 'keep-alive',
+            'Accept': '*/*',
+            'X-Requested-With': 'XMLHttpRequest',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.89 Safari/537.36',
+            'Referer': 'http://index.baidu.com/?tpl=trend&word=%CE%A4%B5%C2',
+            'Accept-Encoding': 'gzip, deflate',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+            'Cookie': cookies_string
+        }
         cur.execute("SELECT id,word,start,end  FROM baidu_index_words WHERE flag = 0 ORDER BY id ASC  LIMIT 1")
         word_info = cur.fetchall()
         print(word_info)
@@ -526,7 +638,7 @@ def process_request(myThrottle, redis_name):
             startdate = str(word_info[0]['start'])  # mysql date返回的是个date对象
             enddate = str(word_info[0]['end'])
             try:
-                check_authority = get_request_period(word, headers, browser, myThrottle)
+                get_request_period(word, headers, browser, myThrottle)
                 startdate = date_comparision(startdate, '2006-06-01')  # 限定日期至少大于2006-06-01
                 enddate = date_comparision(enddate, time_intverl(time.strftime('%Y-%m-%d'), -24 * 3600),
                                            -1)  # 限定日期不大于昨日
@@ -546,10 +658,29 @@ def process_request(myThrottle, redis_name):
                             get_request(word, period_start, period_end, headers, word_path, browser, myThrottle,
                                         redis_name)
                         except StopIteration:
-                            print('date all done')
+                            print('pc date all done')
                             break
+                        except InternetException as e:
+                            time.sleep(5)
+                            browser.close()
+                            cookies_string, browser = prep_cookies()
+                            headers = {
+                                'Host': 'index.baidu.com',
+                                'Connection': 'keep-alive',
+                                'Accept': '*/*',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.89 Safari/537.36',
+                                'Referer': 'http://index.baidu.com/?tpl=trend&word=%CE%A4%B5%C2',
+                                'Accept-Encoding': 'gzip, deflate',
+                                'Accept-Language': 'zh-CN,zh;q=0.9',
+                                'Cookie': cookies_string
+                            }
+                            print('reload browser,continue to process')
+                            # 处理文件
+                            get_request(word, e.start, e.end, headers, word_path, browser, myThrottle,
+                                        redis_name)
                         except Exception as e:
-                            if not isinstance(e, (StopIteration,)):
+                            if not isinstance(e, (StopIteration,InternetException)):
                                 traceback.print_exc()
                                 print('we should break')
                                 print(e)
@@ -567,10 +698,29 @@ def process_request(myThrottle, redis_name):
                             get_request(word, period_start, period_end, headers, word_path, browser, myThrottle,
                                         redis_name)
                         except StopIteration:
-                            print('date all done')
+                            print('all  date all done')
                             break
+                        except InternetException as e:
+                            time.sleep(5)
+                            browser.close()
+                            cookies_string, browser = prep_cookies()
+                            headers = {
+                                'Host': 'index.baidu.com',
+                                'Connection': 'keep-alive',
+                                'Accept': '*/*',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.89 Safari/537.36',
+                                'Referer': 'http://index.baidu.com/?tpl=trend&word=%CE%A4%B5%C2',
+                                'Accept-Encoding': 'gzip, deflate',
+                                'Accept-Language': 'zh-CN,zh;q=0.9',
+                                'Cookie': cookies_string
+                            }
+                            print('reload browser,continue to process')
+                            # 处理文件
+                            get_request(word, e.start, e.end, headers, word_path, browser, myThrottle,
+                                        redis_name)
                         except Exception as e:
-                            if not isinstance(e, (StopIteration,)):
+                            if not isinstance(e, (StopIteration,InternetException)):
                                 traceback.print_exc()
                                 print('we should break')
                                 print(e)
@@ -581,6 +731,7 @@ def process_request(myThrottle, redis_name):
                 cur.execute('UPDATE baidu_index_words SET flag = -1,datetime = %s WHERE id = %s ',
                             [time.strftime('%Y-%m-%d %H:%M:%S'), id])  # 未收录
                 conn.commit()
+
             except  Exception as e:
                 if not isinstance(e, KeyError):
                     traceback.print_exc()
@@ -592,217 +743,116 @@ def process_request(myThrottle, redis_name):
                 cur.execute('UPDATE baidu_index_words SET flag = 1,datetime = %s WHERE id = %s ',
                             [time.strftime('%Y-%m-%d %H:%M:%S'), id])
                 conn.commit()
+                browser.close()
         else:
             break
 
 
-def single_joint(dir,refer_date,origin_width,origin_margin_left, word,cur, conn):
-    # cur.execute("SELECT * FROM baidu_index WHERE id = %s", [id])
-    # row_info = cur.fetchall()[0]
-    #
-    # print(id, row_info)
-    # margin_left = [int(x) for x in row_info['margin_left'].split(',')]
-    # width = [int(x) for x in row_info['width'].split(',')]
-    # location = row_info['location']
-    # dir = row_info['dir']
-    # refer_date = row_info['refer_date_begin']
+def single_joint(dir,refer_date,origin_width,origin_margin_left,id):
 
+
+    print('Task {0} pid {1} is running'.format(dir, os.getpid()))
+    time.sleep(1)
+    conn, cur = mysqlConn()
     margin_left = [int(x) for x in origin_margin_left.split(',')]
     width = [int(x) for x in origin_width.split(',')]
     location = r'%s\%s.png'%(dir,refer_date)
     dir = dir
     refer_date = refer_date
-    # print(margin_left,width,location,dir,refer_date)
     file_path = '%s\\Puzzle%s.png' % (dir, refer_date)
     try:
         origin_img = Image.open(location)
         w, h = origin_img.size  # 返回当前图片宽,长元组
         target = Image.new('RGB', (sum(width), h))
-        # origin_img.show()
         for i in range(len(width)):
             img_crop = origin_img.crop((margin_left[i], 0, width[i] + margin_left[i], h))
             target.paste(img_crop, (sum(width[0:i]), 0, sum(width[0:i + 1]), h))  # 切片运算符是左开右闭
-            # target.show()
-        # target.show()
         target.save(file_path)
 
         # image识别
         num = img_recognition(dir, refer_date)
-        print('recognition is ' + num)
-        # cur.execute('UPDATE  baidu_index SET process_status = 1,recognitions = %s WHERE id = %s',
-        #             [int(num), id])
-        cur.execute(
-            'INSERT INTO `baidu_index` (dir,word,width,margin_left,img_url,location,time,refer_date_begin,refer_date_end,process_status,recognitions) '
-            'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
-            [
-                dir, word, origin_width, origin_margin_left, '',
-               location,
-                time.strftime('%Y-%m-%d %H:%M:%S'), refer_date, refer_date,1,int(num)
-            ]
-        )
+        print('recognition is %s'%num)
+
+        cur.execute('UPDATE  baidu_index SET process_status = 1,recognitions = %s WHERE id = %s',
+                    [num, id])
         conn.commit()
-        return dir, refer_date
     except Exception as e:
+        traceback.print_exc()
+        cur.execute('UPDATE  baidu_index SET process_status = -1  WHERE id = %s',
+                    [id])
+        conn.commit()
         print(e)
 
+    print('Task {0} end.'.format(dir))
 
-def procss_local(redis_name, dest_name):
+
+def process_local(conn,cur):
     '''
     处理图像识别
     :return:
     '''
-    conn, cur = mysqlConn()
-    redis_conn = redisConn.myRedisQueue('118.25.41.135', 6379, 'mhbredis', db=5)
-    print('this new process has been invoked ,pid as %s' % (os.getpid()))
-    time_wait = 10
-    while True:
-        try:
-            info = redis_conn.redis.brpoplpush(redis_name, dest_name, 30)
-            print('got info %s', info)
-            if info:
-                # dir|refer_date|width|margin_left|now
-                info = info.split('|')
-                dir = info[0]
-                refer_date = info[1]
-                width = info[2]
-                margin_left = info[3]
-                word=info[5]
-                single_joint(dir,refer_date,width,margin_left, word,cur, conn)
-                # pool.apply_async(single_joint,args=(id,))
-                # dir, refer_date = single_joint(id)
+    print('current process {0}'.format(os.getpid()))
+    time_start = int(time.time())
 
-                time_wait = 10  # 重置等待时间
-            else:  # 当前无
-                time_wait *= 2
-                print('nothing to do')
-                time.sleep(time_wait)
-        # except
-        except Exception as e:
-            traceback.print_exc()
-            print(e)
-            # 把redis pop的值返回
-            redis_conn.redis.rpush(redis_name, redis_conn.redis.lpop(dest_name))
-        finally:
-            if time_wait == 10 * 2 ** 20:
-                print('it seems nothing pushed in to deal with')
-                break
-    # pool.close()
-    # pool.join()
+    cur.execute(
+        'SELECT id,dir,refer_date_begin,width,margin_left,word FROM  `baidu_index` WHERE process_status=0  ORDER BY id ASC  ')
+
+    '''串行处理,1000条记录耗时469s,2/1000的错误识别'''
+    # while True:
+    #     info =cur.fetchone()
+    #     if not info:
+    #         break
+    #     else:
+    #         print('got info %s', info)
+    #         id = info['id']
+    #         dir = info['dir']
+    #         refer_date = info['refer_date_begin']
+    #         width = info['width']
+    #         margin_left = info['margin_left']
+    #         single_joint(dir, refer_date, width, margin_left, id)
+
+    '''多进程处理,1000条记录耗时342s,'''
+
+    p = multiprocessing.Pool(processes=8)
+
+    while True:
+        info = cur.fetchone()
+        if not info:
+            break
+        else:
+            print('got info %s'%info)
+            id = info['id']
+            dir = info['dir']
+            refer_date = info['refer_date_begin']
+            width = info['width']
+            margin_left = info['margin_left']
+            p.apply_async(single_joint,args=(dir, refer_date, width, margin_left, id))
+            # single_joint(dir, refer_date, width, margin_left, id, temp_conn, temp_cur)
+    print('all subprocesses have been applied')
+    p.close()
+    p.join()
+
+    time_end = int(time.time())
+    print('lasts %s' % (time_end - time_start))
+
     print('All Done')
 
 
 if __name__ == '__main__':
-    myThrottle = Throttle(1)
-    myRedis = redisConn.myRedisQueue('118.25.41.135', 6379, 'mhbredis', db=5)
-    redis_name = 'baidu_index_queue'
-    redis_dest_name = '%s_backup' % (redis_name)
+    myThrottle = Throttle(1.5)
+    # myRedis = redisConn.myRedisQueue('118.25.41.135', 6379, 'mhbredis', db=5)
+    # redis_name = 'baidu_index_queue'
+    # redis_dest_name = '%s_backup' % (redis_name)
 
-    process_for_request = multiprocessing.Process(target=process_request, args=(myThrottle, redis_name))
-    process_for_recognition = multiprocessing.Process(target=procss_local, args=(redis_name, redis_dest_name))
-    process_for_request.start()
-    process_for_recognition.start()
-    process_for_request.join()
-    print('end for internet work')
-    process_for_recognition.join()
-    print('end for local work')
+    '''谨防封号,试验下来封当天'''
+    # process_for_request = multiprocessing.Process(target=process_request, args=(myThrottle, redis_name))
+    # process_for_request.start()
+    # process_for_request.join()
+    # print('end for internet work')
 
-    # cookies_string, browser = prep_cookies()
-    # headers = {
-    #     'Host': 'index.baidu.com',
-    #     'Connection': 'keep-alive',
-    #     'Accept': '*/*',
-    #     'X-Requested-With': 'XMLHttpRequest',
-    #     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.89 Safari/537.36',
-    #     'Referer': 'http://index.baidu.com/?tpl=trend&word=%CE%A4%B5%C2',
-    #     'Accept-Encoding': 'gzip, deflate',
-    #     'Accept-Language': 'zh-CN,zh;q=0.9',
-    #     'Cookie': cookies_string
-    # }
-    # while True:
-    #     cur.execute("SELECT id,word,start,end  FROM baidu_index_words WHERE flag = 0 ORDER BY id ASC  LIMIT 1")
-    #     word_info = cur.fetchall()
-    #     print(word_info)
-    #     if word_info:
-    #         word = word_info[0]['word']
-    #         id = word_info[0]['id']
-    #         print('settle %s' % word)
-    #         word_path = '%s_%s' % (save_path, word)
-    #         if not os.path.exists(word_path):
-    #             os.mkdir(word_path)
-    #         # 据观察,2006-06-01开启,pc趋势具备数据,自2011-01-01之后,移动趋势具备数据,则
-    #         startdate = str(word_info[0]['start'])#mysql date返回的是个date对象
-    #         enddate = str(word_info[0]['end'])
-    #         # baidu_index_date_generator_v2(startdate, enddate)
-    #         try:
-    #             startdate = date_comparision(startdate,'2006-06-01')#限定日期至少大于2006-06-01
-    #             enddate = date_comparision(enddate,time_intverl(time.strftime('%Y-%m-%d'),-24*3600),-1)#限定日期不大于昨日
-    #
-    #             # period, res1, res2 = get_request_period(word, headers, browser)
-    #             # startdate = date_comparision(startdate, period[0], 1)
-    #             pc_period,all_period = split_date(startdate,enddate)
-    #             print(pc_period,all_period)
-    #
-    #             enddate_g = enddate_generator(startdate, enddate)
-    #             if  pc_period:#PC任务存在
-    #                 print('start pc 任务 from %s to %s'%(pc_period[0],pc_period[1]))
-    #                 pc_generator = enddate_generator(pc_period[0], pc_period[1])
-    #                 while True:
-    #                     try:
-    #                         period_info = next(pc_generator)
-    #                         period_start = period_info[0]
-    #                         period_end = period_info[1]
-    #                         print(period_info)
-    #                         # 处理文件
-    #                         get_request(word, period_start, period_end, headers, word_path, browser)
-    #                     except StopIteration:
-    #                         print('date all done')
-    #                         break
-    #                     except Exception as e:
-    #                         if not isinstance(e, StopIteration):
-    #                             traceback.print_exc()
-    #                             print('we should break')
-    #                             print(e)
-    #                             break
-    #             if all_period:#整体任务存在
-    #                 print('start 整体人物  from %s to %s' % (all_period[0], all_period[1]))
-    #                 all_generator = enddate_generator(all_period[0], all_period[1])
-    #                 while True:
-    #                     try:
-    #                         period_info = next(all_generator)
-    #                         period_start = period_info[0]
-    #                         period_end = period_info[1]
-    #                         print(period_info)
-    #                         # 处理文件
-    #                         get_request(word, period_start, period_end, headers, word_path, browser)
-    #                     except StopIteration:
-    #                         print('date all done')
-    #                         break
-    #                     except Exception as e:
-    #                         if not isinstance(e, StopIteration):
-    #                             traceback.print_exc()
-    #                             print('we should break')
-    #                             print(e)
-    #                             break
-    #
-    #         except KeyError as e:  # PPval未被定义res1,res2表现为该关键字未被收录,下一个
-    #             traceback.print_exc()
-    #             cur.execute('UPDATE baidu_index_words SET flag = -1,datetime = %s WHERE id = %s ',
-    #                         [time.strftime('%Y-%m-%d %H:%M:%S'), id])  # 未收录
-    #             conn.commit()
-    #         except  Exception as e:
-    #             if not isinstance(e, KeyError):
-    #                 traceback.print_exc()
-    #                 print('we should break')
-    #                 print(e)
-    #             continue
-    #         else:
-    #             '''更新当前关键字 标识'''
-    #             cur.execute('UPDATE baidu_index_words SET flag = 1,datetime = %s WHERE id = %s ',
-    #                         [time.strftime('%Y-%m-%d %H:%M:%S'), id])
-    #             conn.commit()
-    #     else:
-    #         break
 
-    # browser.close()
+    process_local(conn,cur)
 
-    # joint(words[0])
+
+
+

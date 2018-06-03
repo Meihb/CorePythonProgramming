@@ -177,15 +177,15 @@ if __name__ == '__main__':
     import myBaiduIndex
 
     # print(time_intverl('2006-06-01', 24 * 3600 * 625))
-    # print(date_duration('2006-06-01','2018-05-31'))
+    print(date_duration('2006-06-01','2018-05-31'))
 
-    g = enddate_generator('2006-06-01','2010-12-31')
+    # g = enddate_generator('2006-06-01','2010-12-31')
 
 
-    while True:
-        try:
-            info = next(g)
-            print(info)
-        except StopIteration:
-            print('end')
-            break
+    # while True:
+    #     try:
+    #         info = next(g)
+    #         print(info)
+    #     except StopIteration:
+    #         print('end')
+    #         break
