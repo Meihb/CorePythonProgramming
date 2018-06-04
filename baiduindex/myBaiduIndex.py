@@ -14,15 +14,15 @@ import urllib
 import pytesseract
 import traceback
 import os
-import pymysql, multiprocessing
+import pymysql, multiprocessing,threading
 import redisConn
 
 save_path = r'D:\download\baiduINdex' + time.strftime('%Y-%m-%d %H%M')
 
 chromeDriver = r'C:\Program Files (x86)\Google\Chrome\Application\chromedriver.exe'  # chromedriver路径
 tesseract_exe = r'D:\software\dev\Tesseract-OCR\tesseract.exe'  # tesseract.exe路径
-bd_account = '13851020274'  # 百度账号
-# bd_account='19921625136'
+# bd_account = '13851020274'  # 百度账号
+bd_account='19921625136'
 bd_pwd = 'mhb12121992'  # 百度密码
 
 bd_url = 'http://index.baidu.com/?tpl=trend'
@@ -45,7 +45,7 @@ class Throttle():
         print(self.domains)
         if self.domains.get(domain):
             last_access_interval = self.delay - (time.time() - self.domains.get(domain))
-            print(last_access_interval)
+            # print(last_access_interval)
             if last_access_interval > 0:
                 print('sleep for %ss' % (last_access_interval))
                 time.sleep(int(last_access_interval))
@@ -111,10 +111,10 @@ def prep_cookies():
         browser.find_element_by_id('TANGRAM__PSP_4__password').send_keys(bd_pwd)
 
         browser.find_element_by_id('TANGRAM__PSP_4__submit').submit()  # 确认登录
-
         if browser.find_element_by_id('TANGRAM__PSP_4__verifyCodeImg'):
             # 存在验证码，手动填写
-            time.sleep(9)
+            time.sleep(60)
+
 
         time.sleep(3)  # 添加延迟以保证cookie获取完全
         cookies = browser.get_cookies()
@@ -305,8 +305,9 @@ def get_request(word, startdate, enddate, headers, word_path, browser, myThrottl
             # margin_left = [int(x) for x in margin_left]
             range_dict.append({'width': width, 'margin_left': margin_left})
             img_url = 'http://index.baidu.com' + re.findall('url\("(.*?)"\)', response)[0]
-            img_content = requests.get(img_url, headers=headers,timeout=60)
-            # time.sleep(1)
+
+            img_Throttle.wait('http://index.baidu.com')
+            img_content = requests.get(img_url, headers=headers)
             if img_content.status_code == requests.codes.ok:
                 with open('%s\\%s.png' % (save_path, temp_date), 'wb') as file:
                     file.write(img_content.content)
@@ -320,11 +321,8 @@ def get_request(word, startdate, enddate, headers, word_path, browser, myThrottl
                         time.strftime('%Y-%m-%d %H:%M:%S'), temp_date, temp_date
                     ]
                 )
-                # conn.commit()
-                # dir|refer_date|width|margin_left|now|word
-                # myRedis.push(redis_name, '%s|%s|%s|%s|%s|%s' % (
-                #     save_path, temp_date, ','.join(width), ','.join(margin_left), time.strftime('%Y-%m-%d %H:%M:%S'),word))
         except (requests.exceptions.ConnectionError,urllib3.exceptions.ProtocolError) as e:
+            print('internet error')
             traceback.print_exc()
             conn.rollback()
             raise InternetException(startdate,enddate)
@@ -419,6 +417,7 @@ def img_recognition(save_dir, index):
     jpgzoom = Image.open(r'%s\Puzzle%s.png' % (save_dir, index))
     # 转化到灰度图
     jpgzoom = jpgzoom.convert('L')
+    # jpgzoom.show()
     # 二值化，采用阈值分割法，threshold为分割点
     jpgzoom = jpgzoom.point(table, '1')
     # print(type(jpgzoom))
@@ -433,46 +432,48 @@ def img_recognition(save_dir, index):
     out.save(out_path, quality=100)
     flag = False
     num =""
-    for i in range(7, 10):
-        num = pytesseract.image_to_string(out, config="--psm %s -c tessedit_char_whitelist='1234567890'" % (i,))
-        # print(num, type(num))
-        num = num.strip().upper()
-        print('psm i is %s' % (i), num)
-        try:
-            for rep in reps:
-                num = num.replace(rep, reps[rep])
-            num = int(num)
-        except:
-            continue
-        else:
-            flag = True
-            break
-    if not flag:
-        for i in range(0, 14):
-            num = pytesseract.image_to_string(out, config="--oem %s -c tessedit_char_whitelist='1234567890'" % (i,))
-            # print(num,type(num))
-            num = num.strip().upper()
-            print('oem i is %s' % (i), num)
-            try:
-                for rep in reps:
-                    num = num.replace(rep, reps[rep])
-                num = int(num)
-            except:
-                continue
-            else:
-                flag = True
-                break
-    if flag:
-        print('confirmed img %s recognized as %s' % (out_path, num))
-        return num
-    else:
-        print('not confirmed ')
-        return 'error'
+    # for i in range(7, 10):
+    #     num = pytesseract.image_to_string(out, config="--psm %s -l newnum -c tessedit_char_whitelist='1234567890'" % (i,))
+    #     # print(num, type(num))
+    #     num = num.strip().upper()
+    #     print('psm i is %s' % (i), num)
+    #     try:
+    #         for rep in reps:
+    #             num = num.replace(rep, reps[rep])
+    #         num = int(num)
+    #     except:
+    #         continue
+    #     else:
+    #         flag = True
+    #         break
+    # if not flag:
+    #     for i in range(0, 14):
+    #         num = pytesseract.image_to_string(out, config="--oem %s -c tessedit_char_whitelist='1234567890'" % (i,))
+    #         # print(num,type(num))
+    #         num = num.strip().upper()
+    #         print('oem i is %s' % (i), num)
+    #         try:
+    #             for rep in reps:
+    #                 num = num.replace(rep, reps[rep])
+    #             num = int(num)
+    #         except:
+    #             continue
+    #         else:
+    #             flag = True
+    #             break
+    # if flag:
+    #     print('confirmed img %s recognized as %s' % (out_path, num))
+    #     return num
+    # else:
+    #     print('not confirmed ')
+    #     return 'error'
 
-    # num = pytesseract.image_to_string(out, config="-psm 7 -c tessedit_char_whitelist=1234567890")
-    # num = num.strip().upper()
-    # for rep in reps:
-    #     num = num.replace(rep, reps[rep])
+    num = pytesseract.image_to_string(out, config="-l num")
+    num = num.strip().upper()
+    print(num)
+    for rep in reps:
+        num = num.replace(rep, reps[rep])
+    return int(num)
     # if num:
     #     num = num.replace("'", '').replace('.', '').replace(',', '').replace('?', '7').replace("S", '5').replace(" ",
     #                                                                                                              "").replace(
@@ -611,19 +612,20 @@ def process_request(myThrottle, redis_name):
     #     'Accept-Language': 'zh-CN,zh;q=0.9',
     #     'Cookie': cookies_string
     # }
+    cookies_string, browser = prep_cookies()
+    headers = {
+        'Host': 'index.baidu.com',
+        'Connection': 'keep-alive',
+        'Accept': '*/*',
+        'X-Requested-With': 'XMLHttpRequest',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.89 Safari/537.36',
+        'Referer': 'http://index.baidu.com/?tpl=trend&word=%CE%A4%B5%C2',
+        'Accept-Encoding': 'gzip, deflate',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+        'Cookie': cookies_string
+    }
     while True:
-        cookies_string, browser = prep_cookies()
-        headers = {
-            'Host': 'index.baidu.com',
-            'Connection': 'keep-alive',
-            'Accept': '*/*',
-            'X-Requested-With': 'XMLHttpRequest',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.89 Safari/537.36',
-            'Referer': 'http://index.baidu.com/?tpl=trend&word=%CE%A4%B5%C2',
-            'Accept-Encoding': 'gzip, deflate',
-            'Accept-Language': 'zh-CN,zh;q=0.9',
-            'Cookie': cookies_string
-        }
+
         cur.execute("SELECT id,word,start,end  FROM baidu_index_words WHERE flag = 0 ORDER BY id ASC  LIMIT 1")
         word_info = cur.fetchall()
         print(word_info)
@@ -647,7 +649,7 @@ def process_request(myThrottle, redis_name):
 
                 if pc_period:  # PC任务存在
                     print('start pc 任务 from %s to %s' % (pc_period[0], pc_period[1]))
-                    pc_generator = enddate_generator(pc_period[0], pc_period[1])
+                    pc_generator = enddate_generator(pc_period[0], pc_period[1],step=24*3600*300)
                     while True:
                         try:
                             period_info = next(pc_generator)
@@ -661,8 +663,10 @@ def process_request(myThrottle, redis_name):
                             print('pc date all done')
                             break
                         except InternetException as e:
-                            time.sleep(5)
+                            print('internet error')
                             browser.close()
+                            conn.rollback()
+                            time.sleep(5)
                             cookies_string, browser = prep_cookies()
                             headers = {
                                 'Host': 'index.baidu.com',
@@ -701,8 +705,10 @@ def process_request(myThrottle, redis_name):
                             print('all  date all done')
                             break
                         except InternetException as e:
-                            time.sleep(5)
+                            print('internet error')
                             browser.close()
+                            conn.rollback()
+                            time.sleep(5)
                             cookies_string, browser = prep_cookies()
                             headers = {
                                 'Host': 'index.baidu.com',
@@ -731,6 +737,7 @@ def process_request(myThrottle, redis_name):
                 cur.execute('UPDATE baidu_index_words SET flag = -1,datetime = %s WHERE id = %s ',
                             [time.strftime('%Y-%m-%d %H:%M:%S'), id])  # 未收录
                 conn.commit()
+                # browser.close()
 
             except  Exception as e:
                 if not isinstance(e, KeyError):
@@ -743,17 +750,18 @@ def process_request(myThrottle, redis_name):
                 cur.execute('UPDATE baidu_index_words SET flag = 1,datetime = %s WHERE id = %s ',
                             [time.strftime('%Y-%m-%d %H:%M:%S'), id])
                 conn.commit()
-                browser.close()
+                time.sleep(5)
+                # browser.close()
         else:
             break
 
 
-def single_joint(dir,refer_date,origin_width,origin_margin_left,id):
+def single_joint(dir,refer_date,origin_width,origin_margin_left,id,conn, cur,order=0):
 
 
-    print('Task {0} pid {1} is running'.format(dir, os.getpid()))
+    print('order  {0}  Task {1} is running'.format(order,dir+str(refer_date)))
     time.sleep(1)
-    conn, cur = mysqlConn()
+    # conn, cur = mysqlConn()
     margin_left = [int(x) for x in origin_margin_left.split(',')]
     width = [int(x) for x in origin_width.split(',')]
     location = r'%s\%s.png'%(dir,refer_date)
@@ -782,8 +790,11 @@ def single_joint(dir,refer_date,origin_width,origin_margin_left,id):
                     [id])
         conn.commit()
         print(e)
+    finally:
+        cur.close()
+        conn.close()
 
-    print('Task {0} end.'.format(dir))
+    print('order {0} finieshed.'.format(order))
 
 
 def process_local(conn,cur):
@@ -795,24 +806,25 @@ def process_local(conn,cur):
     time_start = int(time.time())
 
     cur.execute(
-        'SELECT id,dir,refer_date_begin,width,margin_left,word FROM  `baidu_index` WHERE process_status=0  ORDER BY id ASC  ')
+        'SELECT id,dir,refer_date_begin,width,margin_left,word FROM  `baidu_index` WHERE process_status=0  ORDER BY id ASC limit 1000 ')
 
-    '''串行处理,1000条记录耗时469s,2/1000的错误识别'''
-    # while True:
-    #     info =cur.fetchone()
-    #     if not info:
-    #         break
-    #     else:
-    #         print('got info %s', info)
-    #         id = info['id']
-    #         dir = info['dir']
-    #         refer_date = info['refer_date_begin']
-    #         width = info['width']
-    #         margin_left = info['margin_left']
-    #         single_joint(dir, refer_date, width, margin_left, id)
+    '''串行处理,1000条记录耗时469s'''
+    '''
+    while True:
+        info =cur.fetchone()
+        if not info:
+            break
+        else:
+            print('got info %s', info)
+            id = info['id']
+            dir = info['dir']
+            refer_date = info['refer_date_begin']
+            width = info['width']
+            margin_left = info['margin_left']
+            single_joint(dir, refer_date, width, margin_left, id)
+    '''
 
-    '''多进程处理,1000条记录耗时342s,'''
-
+    '''多进程处理,1000条记录耗时342s 事实上这种创建销毁太过频繁的不适合多进程'''
     p = multiprocessing.Pool(processes=8)
 
     while True:
@@ -831,27 +843,84 @@ def process_local(conn,cur):
     print('all subprocesses have been applied')
     p.close()
     p.join()
+    '''多线程处理,1000条记录耗时'''
+    '''
+    threading_list = []
+    while True:
+        info = cur.fetchone()
+        if not info:
+            break
+        else:
+            print('got info %s'%info)
+            id = info['id']
+            dir = info['dir']
+            refer_date = info['refer_date_begin']
+            width = info['width']
+            margin_left = info['margin_left']
+            t = threading.Thread(target=single_joint,args=(dir, refer_date, width, margin_left, id,conn,cur,len(threading_list)))
+            threading_list.append(t)
+    for t in threading_list:
+        t.start()
+    for t in threading_list:
+        t.join()
+    '''
 
     time_end = int(time.time())
     print('lasts %s' % (time_end - time_start))
 
     print('All Done')
 
+def process_local_threading(conn,cur):
+    '''
+    处理图像识别
+    :return:
+    '''
+    print('current process {0}'.format(os.getpid()))
+    time_start = int(time.time())
+
+    cur.execute(
+        'SELECT id,dir,refer_date_begin,width,margin_left,word FROM  `baidu_index` WHERE process_status=0  ORDER BY id ASC limit 1000 ')
+
+    '''多线程处理,1000条记录耗时'''
+    threading_list = []
+    while True:
+        info = cur.fetchone()
+        if not info:
+            break
+        else:
+            print('got info %s'%info)
+            id = info['id']
+            dir = info['dir']
+            refer_date = info['refer_date_begin']
+            width = info['width']
+            margin_left = info['margin_left']
+            t = threading.Thread(target=single_joint,args=(dir, refer_date, width, margin_left, id,conn,cur,len(threading_list)))
+            threading_list.append(t)
+
+    for t in threading_list:
+        t.start()
+    for t in threading_list:
+        t.join()
+
+    time_end = int(time.time())
+    print('lasts %s' % (time_end - time_start))
+    print('All Done')
 
 if __name__ == '__main__':
-    myThrottle = Throttle(1.5)
+    myThrottle = Throttle(1)
+    img_Throttle = Throttle(1.5)
     # myRedis = redisConn.myRedisQueue('118.25.41.135', 6379, 'mhbredis', db=5)
-    # redis_name = 'baidu_index_queue'
-    # redis_dest_name = '%s_backup' % (redis_name)
+    redis_name = 'baidu_index_queue'
+    redis_dest_name = '%s_backup' % (redis_name)
 
     '''谨防封号,试验下来封当天'''
-    # process_for_request = multiprocessing.Process(target=process_request, args=(myThrottle, redis_name))
-    # process_for_request.start()
-    # process_for_request.join()
-    # print('end for internet work')
+    print('start to request work')
+    process_request(myThrottle,redis_name)
+    print('end for internet work')
 
-
-    process_local(conn,cur)
+    # print('start to local work')
+    # process_local(conn,cur)
+    # print('end for local work')
 
 
 
