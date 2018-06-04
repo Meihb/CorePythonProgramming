@@ -468,7 +468,7 @@ def img_recognition(save_dir, index):
     #     print('not confirmed ')
     #     return 'error'
 
-    num = pytesseract.image_to_string(out, config="-l num")
+    num = pytesseract.image_to_string(out, config=" --psm 7 -l num")
     num = num.strip().upper()
     print(num)
     for rep in reps:

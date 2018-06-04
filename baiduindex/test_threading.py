@@ -75,7 +75,7 @@ def process_local_threading(conn,cur):
     time_start = int(time.time())
 
     cur.execute(
-        'SELECT id,dir,refer_date_begin,width,margin_left,word FROM  `baidu_index` WHERE process_status=1  ORDER BY id ASC limit 5 ')
+        'SELECT id,dir,refer_date_begin,width,margin_left,word FROM  `baidu_index` WHERE process_status=0  ORDER BY id ASC limit 1000 ')
 
     '''多线程处理,1000条记录耗时'''
     while True:
