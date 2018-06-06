@@ -43,3 +43,5 @@ CREATE TABLE `baidu_index` (
   KEY `word` (`word`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
 ```
+### python3 第三方库
+- PIL、requests、selenium、pytesseract

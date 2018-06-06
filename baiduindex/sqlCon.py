@@ -6,8 +6,9 @@ def mysqlConn():
     port = 3306
     user = 'dwts'
     pwd = 'dwts'
+    db = 'dwts'
     # 创建连接
-    conn = pymysql.connect(host=host, user=user, passwd=pwd, port=port, charset='utf8mb4',db='dwts')
+    conn = pymysql.connect(host=host, user=user, passwd=pwd, port=port, charset='utf8mb4',db=db)
     # 建立游标
     cur = conn.cursor(cursor = pymysql.cursors.DictCursor)
     # 执行sql,返回影响行数

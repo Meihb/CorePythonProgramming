@@ -13,21 +13,20 @@ import re
 import urllib
 import pytesseract
 import traceback
-import os
+import os,json
 import pymysql, multiprocessing, threading
 
-
 '''导入配置'''
-import  conf
+import conf
+
 save_path = conf.save_path
 
 # chromeDriver = r'C:\Program Files (x86)\Google\Chrome\Application\chromedriver.exe'  # chromedriver路径
-chromeDriver = conf.chromeDriver # chromedriver路径
+chromeDriver = conf.chromeDriver  # chromedriver路径
 tesseract_exe = conf.tesseract_exe  # tesseract.exe路径
-bd_account = conf.bd_account# 百度账号
+bd_account = conf.bd_account  # 百度账号
 # bd_account='19921625136'
 bd_pwd = conf.bd_pwd  # 百度密码
-
 
 if not os.path.exists(save_path):
     os.mkdir(save_path)
@@ -75,16 +74,55 @@ class InternetException(Exception):
 
 
 def mysqlConn():
-    host = '118.25.41.135'
-    port = 3306
-    user = 'dwts'
-    pwd = 'dwts'
+    host = conf.host
+    port = conf.port
+    user = conf.user
+    pwd = conf.pwd
+    db = conf.db
     # 创建连接
     conn = pymysql.connect(host=host, user=user, passwd=pwd, port=port, charset='utf8mb4', db='dwts')
 
     # 建立游标,修改默认元组数据为字典类型
     cur = conn.cursor(cursor=pymysql.cursors.DictCursor)
     return conn, cur
+
+
+def initiate_table(cur):
+    import warnings
+
+    warnings.filterwarnings('ignore')
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS  `baidu_index_words` (
+      `id` int(11) NOT NULL AUTO_INCREMENT,
+      `word` varchar(128) CHARACTER SET utf8 NOT NULL,
+      `flag` int(11) NOT NULL DEFAULT '0',
+      `start` date DEFAULT NULL COMMENT '起始日期不小于2006-06-01',
+      `end` date DEFAULT NULL COMMENT '结束日期不大于昨日',
+      `datetime` datetime DEFAULT NULL,
+      PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=latin1
+        ''')
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS  `baidu_index` (
+      `id` int(11) NOT NULL AUTO_INCREMENT,
+      `recognitions` int(11) DEFAULT NULL,
+      `process_status` int(11) NOT NULL DEFAULT '0' COMMENT '0未处理,-1processing,1commit',
+      `word` varchar(128) NOT NULL,
+      `refer_date_begin` date DEFAULT NULL,
+      `time` datetime NOT NULL,
+      `refer_date_end` date DEFAULT NULL,
+      `width` varchar(256) CHARACTER SET utf8mb4 NOT NULL,
+      `margin_left` varchar(256) CHARACTER SET utf8mb4 NOT NULL,
+      `img_url` text CHARACTER SET utf8mb4 NOT NULL,
+      `dir` varchar(256) CHARACTER SET utf8mb4 DEFAULT NULL,
+      `location` varchar(256) CHARACTER SET utf8mb4 NOT NULL,
+      `resolved_location` varchar(256) CHARACTER SET utf8mb4 DEFAULT NULL,
+      PRIMARY KEY (`id`),
+      KEY `recognitions` (`recognitions`),
+      KEY `process_status` (`process_status`),
+      KEY `word` (`word`)
+    ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8
+        ''')
 
 
 conn, cur = mysqlConn()
@@ -233,7 +271,7 @@ def get_request_period(word, headers, browser, myThrottle):
 
 def err_log(error):
     root = os.path.expanduser('~')
-    with open(r'%s\baidu_index.log'%root, 'a') as f:
+    with open(r'%s\baidu_index.log' % root, 'a') as f:
         f.write('[%s] occurs an error:%s' % (time.strftime('%Y-%m-%d'), error))
 
 
@@ -287,7 +325,7 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
         'Cookie': new_cookies
     }
 
-    myThrottle.wait('http://index.baidu.com',1.5)
+    myThrottle.wait('http://index.baidu.com', 1.5)
     req = requests.get(url, params={'res': res1, 'res2': res2, 'word': word.encode('utf8'), 'startdate': startdate,
                                     'enddate': enddate, 'forecast': 0}, headers=headers, timeout=600)
 
@@ -315,10 +353,9 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
                                params={'res': res1, 'res2': res2, 'classType': 1, 'res3[]': res3,
                                        'className': 'view-value%s' % (timestamp)}, headers=headers, timeout=600)
 
-            print(req.status_code,req.text)
+            print(req.status_code, req.text)
             req = req.json()
             print(temp_date, req)
-            print(type(req['data']['code'][0]))
             response = req['data']['code'][0]
             width = re.findall('width:(.*?)px', response)
             margin_left = re.findall('margin-left:-(.*?)px', response)
@@ -348,9 +385,12 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
             traceback.print_exc()
             conn.rollback()
             raise InternetException(startdate, enddate)
+        except json.decoder.JSONDecodeError as e:
+            with open(r'%s\lost_word.log'%(os.path.expanduser('~')),'a') as f:
+                f.write('%s lost at %s'%(word,temp_date))
         except Exception as e:
-            if not isinstance(e, (requests.exceptions.ConnectionError, urllib3.exceptions.ProtocolError)):
-                err_log('%s failed at %s with exception %s' % (word, temp_date, traceback._cause_message))
+            if not isinstance(e, (requests.exceptions.ConnectionError, urllib3.exceptions.ProtocolError,json.decoder.JSONDecodeError)):
+                err_log('%s failed at %s with exception %s' % (word, temp_date, traceback._context_message))
             traceback.print_exc()
         else:
             m += 1
@@ -991,9 +1031,8 @@ def process_local_threading():
 
 if __name__ == '__main__':
     myThrottle = Throttle()
-
     conn, cur = mysqlConn()
-
+    initiate_table(cur)
     '''谨防封号,试验下来封当天'''
     print('start to request work')
     process_request()
