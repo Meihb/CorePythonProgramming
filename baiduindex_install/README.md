@@ -5,7 +5,7 @@
 # BaiduIndex scrap
 
 ### 配置介绍
-- conf文件,填写百度账号、tesseract-OCR地址、chromedriver地址(可以使用本文件夹下chromedriver.exe)mysql连接方法
+- 重命名conf_sample.py为conf.py文件,填写百度账号、tesseract-OCR地址、chromedriver地址(可以使用本文件夹下chromedriver.exe)mysql连接方法
 - 将主目录下的num.traineddata 复制到tesseract-OCR文件目录下tessdata文件夹内
 
 ### 数据库准备
