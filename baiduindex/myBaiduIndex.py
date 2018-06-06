@@ -36,17 +36,14 @@ class Throttle():
     add a delay between downloads to the same domain
     '''
 
-    def __init__(self, long_delay, frequent_delay):
+    def __init__(self):
         # amount of delay between downloads for each domain
-        self.long_delay = long_delay
-        self.frequent_delay = frequent_delay
         # timestamp of when a domain was last accessed
         self.domains = {}
 
-    def wait(self, url, type=1):
+    def wait(self, url, delay=1.0):
         domain = urllib.parse.urlparse(url).netloc
         # print(domain.netloc)
-        delay = self.long_delay if type == 1 else self.frequent_delay
         print(self.domains)
         if self.domains.get(domain):
             last_access_interval = delay - (time.time() - self.domains.get(domain))
@@ -230,6 +227,11 @@ def get_request_period(word, headers, browser, myThrottle):
     # return pc_period
 
 
+def err_log(error):
+    with open('~/baidu_index.log', 'a') as f:
+        f.write('[%s] occurs an error:%s' % (time.strftime('%Y-%m%-%d'), error))
+
+
 '''
 获取关键字数据,保存原始图片，百度指数从20110101开始,在'全部'模式下,每周统计一次,前期可有数据缺失,需根据数据长度计算初始值
 '''
@@ -246,7 +248,7 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
     :param browser:
     :return:
     '''
-    conn, cur = mysqlConn()
+    # conn, cur = mysqlConn()
     myRedis = redisConn.myRedisQueue('118.25.41.135', 6379, 'mhbredis', db=5)
     save_path = word_path
     myThrottle.wait('http://index.baidu.com')
@@ -281,7 +283,7 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
         'Cookie': new_cookies
     }
 
-    myThrottle.wait('http://index.baidu.com')
+    myThrottle.wait('http://index.baidu.com',1.5)
     req = requests.get(url, params={'res': res1, 'res2': res2, 'word': word.encode('utf8'), 'startdate': startdate,
                                     'enddate': enddate, 'forecast': 0}, headers=headers, timeout=600)
 
@@ -304,10 +306,11 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
     for res3 in res3_list:
         timestamp = int(time.time())
         try:
-            myThrottle.wait('http://index.baidu.com', 2)
             req = requests.get('http://index.baidu.com/Interface/IndexShow/show/',
                                params={'res': res1, 'res2': res2, 'classType': 1, 'res3[]': res3,
                                        'className': 'view-value%s' % (timestamp)}, headers=headers, timeout=600)
+
+            myThrottle.wait('http://index.baidu.com', 1)
             print(req)
             req = req.json()
             print(temp_date, req)
@@ -319,8 +322,9 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
             range_dict.append({'width': width, 'margin_left': margin_left})
             img_url = 'http://index.baidu.com' + re.findall('url\("(.*?)"\)', response)[0]
 
-            myThrottle.wait('http://index.baidu.com', 2)
             img_content = requests.get(img_url, headers=headers)
+            time.sleep(0.5)
+            # myThrottle.wait('http://index.baidu.com', 1)
             if img_content.status_code == requests.codes.ok:
                 with open('%s\\%s.png' % (save_path, temp_date), 'wb') as file:
                     file.write(img_content.content)
@@ -341,7 +345,7 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
             raise InternetException(startdate, enddate)
         except Exception as e:
             if not isinstance(e, (requests.exceptions.ConnectionError, urllib3.exceptions.ProtocolError)):
-                pass
+                err_log('%s failed at %s with exception %s' % (word, temp_date, e.__str__()))
             traceback.print_exc()
         else:
             m += 1
@@ -626,7 +630,6 @@ def process_request(redis_name):
     #     'Accept-Language': 'zh-CN,zh;q=0.9',
     #     'Cookie': cookies_string
     # }
-    conn, cur = mysqlConn()
     cur.execute('SELECT COUNT(1) total from `baidu_index_words` where flag = 0')
     count_info = int(cur.fetchall()[0]['total'])
     if count_info == 0:
@@ -983,8 +986,10 @@ def process_local_threading():
 
 
 if __name__ == '__main__':
-    myThrottle = Throttle(1, 1.5)
+    myThrottle = Throttle()
     # myRedis = redisConn.myRedisQueue('118.25.41.135', 6379, 'mhbredis', db=5)
+
+    conn, cur = mysqlConn()
     redis_name = 'baidu_index_queue'
     redis_dest_name = '%s_backup' % (redis_name)
 

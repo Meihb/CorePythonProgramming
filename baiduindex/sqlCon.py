@@ -30,4 +30,8 @@ def mysqlConn():
 
 
 if __name__ == '__main__':
-    mysqlConn()
+    conn ,cur= mysqlConn()
+    try:
+        conn.ping()
+    except:
+        conn.ping(True)
