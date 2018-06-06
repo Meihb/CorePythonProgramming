@@ -272,7 +272,7 @@ def get_request_period(word, headers, browser, myThrottle):
 def err_log(error):
     root = os.path.expanduser('~')
     with open(r'%s\baidu_index.log' % root, 'a') as f:
-        f.write('[%s] occurs an error:%s' % (time.strftime('%Y-%m-%d'), error))
+        f.write('[%s] occurs an error:%s' % (time.strftime('%Y-%m-%d %H:%M:%S'), error))
 
 
 '''

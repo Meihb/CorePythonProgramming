@@ -45,3 +45,7 @@ CREATE TABLE `baidu_index` (
 ```
 ### python3 第三方库
 - PIL、requests、selenium、pytesseract
+
+
+### 引用
+- 学习修改于原https://github.com/pythonalgorithm/baiduindex.
