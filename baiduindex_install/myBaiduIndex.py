@@ -80,7 +80,7 @@ def mysqlConn():
     pwd = conf.pwd
     db = conf.db
     # 创建连接
-    conn = pymysql.connect(host=host, user=user, passwd=pwd, port=port, charset='utf8mb4', db='dwts')
+    conn = pymysql.connect(host=host, user=user, passwd=pwd, port=port, charset='utf8mb4', db=db)
 
     # 建立游标,修改默认元组数据为字典类型
     cur = conn.cursor(cursor=pymysql.cursors.DictCursor)
