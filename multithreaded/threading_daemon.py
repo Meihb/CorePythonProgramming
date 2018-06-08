@@ -11,11 +11,12 @@ def bar():
     print("end456")
 
 
-t1=Thread(target=foo)
-t2=Thread(target=bar)
+if __name__=='__main__':
+    t1 = Thread(target=foo)
+    t2 = Thread(target=bar)
 
-t1.daemon=True#守护化,会等待主进程运行完毕才回收
-t1.start()
-t2.start()
-print(2)
-print("main-------")
+    t1.daemon = True  # 守护化,会等待主线程运行完毕才回收，更换ti、t2,结果不同
+    t1.start()
+    t2.start()
+    print(2)
+    print("main-------")
