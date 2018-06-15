@@ -10,8 +10,14 @@ def thread_proc(i):
 
 
 class scanner(threading.Thread):
+    '''
+    event.isSet()：返回event的状态值；
+    event.wait()：如果 event.isSet()==False将阻塞线程；
+    event.set()： 设置event的状态值为True，所有阻塞池的线程激活进入就绪状态， 等待操作系统调度；
+    event.clear()：恢复event的状态值为False。
+    '''
     tlist = []  # 用来存储队列的线程
-    maxthreads = 50  # int(sys.argv[2])最大的并发数量，测试下系统最大支持1000多个
+    maxthreads = 5  # int(sys.argv[2])最大的并发数量，测试下系统最大支持1000多个
     evnt = threading.Event()  # 用事件来让超过最大线程设置的并发程序等待
     lck = threading.Lock()  # 线程锁
 
@@ -28,6 +34,7 @@ class scanner(threading.Thread):
             print(e)
         # 以下用来将完成的线程移除线程队列
         scanner.lck.acquire()
+        print(scanner.tlist)
         scanner.tlist.remove(self)
         # 如果移除此完成的队列线程数刚好达到max-1，则说明有线程在等待执行，那么我们释放event，让等待事件执行
         if len(scanner.tlist) == scanner.maxthreads - 1:
@@ -53,7 +60,7 @@ class scanner(threading.Thread):
 
 
 def runscan():
-    for i in range(0, 10):
+    for i in range(0, 20):
         scanner.lck.acquire()
         # 如果目前线程队列超过了设定的上线则等待。
         if len(scanner.tlist) >= scanner.maxthreads:
@@ -108,9 +115,9 @@ def process_local_threading(conn,cur):
     print('All Done')
 
 if __name__ == "__main__":
-    conn,cur = myBaiduIndex.mysqlConn()
-    process_local_threading(conn,cur)
-    # runscan()
+    # conn,cur = myBaiduIndex.mysqlConn()
+    # process_local_threading(conn,cur)
+    runscan()
 
 
 # if __name__=='__main__':

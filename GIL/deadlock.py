@@ -1,10 +1,13 @@
-from threading import Thread,Lock,RLock
+from threading import Thread,Lock,RLock,Semaphore
 import time
 '''
 Lock 与Rlock的区别是,Rlock允许在同一个线程中对同一个锁获取多次
 '''
-mutexA=Lock()
-mutexB=Lock()
+# mutexA=Lock()
+# mutexB=Lock()
+
+mutexA=RLock()
+mutexB=RLock()
 
 class MyThread(Thread):
     def run(self):
