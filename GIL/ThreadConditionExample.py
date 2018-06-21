@@ -23,5 +23,5 @@ if __name__ == '__main__':
         if inp == 'q':
             break
         con.acquire()
-        con.notify(int(inp))
+        con.notify(int(inp))#排名靠前的int个线程被取消阻塞
         con.release()
