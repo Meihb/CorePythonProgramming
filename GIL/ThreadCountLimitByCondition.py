@@ -39,7 +39,7 @@ if __name__=='__main__':
         sc = scanner(target=thread_proc, args=(i,))
         scanner.cond.acquire()
         if len(scanner.tlst)>=scanner.maxthreads:
-            scanner.cond.wait()
+            scanner.cond.wait()#完全可以用wait_for(return event.status)实现cond和event的互通
             scanner.tlst.append(sc)
             sc.start()
 
