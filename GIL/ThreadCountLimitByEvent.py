@@ -49,7 +49,7 @@ def test():
         scanner.lck.acquire()
         if len(scanner.tlist) >= scanner.MaxThreads:
             scanner.lck.release()
-            scanner.event.wait()#若当前线程数已达最大值,阻塞当前代码,组织其任务发布
+            scanner.event.wait()#若当前线程数已达最大值,阻塞当前代码,阻止其任务发布
             scanner.event.clear()
         else:
             scanner.lck.release()
