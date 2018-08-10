@@ -51,12 +51,17 @@ class myBDTB:
             print(tag + '查找关键字' + keyword)
             if result.find(keyword) >= 0:
                 print('YES' + '于' + result)
-                if self.mailFrequency(href):
-                    errormsg = "find  keyword [" + keyword + '] in  ' + tag + '[' + result + ' ] ,href is https://tieba.baidu.com' + href
-                    self.mailWarning('1253880904@qq.com', 'iqjnzsydcofpibif', '1253880904@qq.com', errormsg, href)
-                else:
-                    print('太过频繁,取消发送')
-
+                errormsg = "find  keyword [" + keyword + '] in  ' + tag + '[' + result + ' ] ,href is https://tieba.baidu.com' + href+' @' + time.strftime("%Y-%m-%d %H %M %S", time.localtime())
+                self.writeWarningLog(errormsg)
+                # if self.mailFrequency(href):
+                #     self.mailWarning('1253880904@qq.com', 'iqjnzsydcofpibif', '1253880904@qq.com', errormsg, href)
+                # else:
+                #     print('太过频繁,取消发送')
+    def writeWarningLog(self,warning):
+        path = "/data/python_code/warning.log"
+        with open(path, 'a') as f:
+            f.write(warning+"\r\t\n")
+            f.write('______________________'+"\r\t\n")
     def mailWarning(self, sender, authcode, receiver, errormsg, href):
         print('errormsg is ' + errormsg)
         ret = True
@@ -97,7 +102,7 @@ class myBDTB:
             return False
 
 
-obj = myBDTB(url='https://tieba.baidu.com/f?kw=ff14&fr=ala0&tpl=5', keywords=['报警', '奸商'])
+obj = myBDTB(url='https://tieba.baidu.com/f?kw=ff14&fr=ala0&tpl=5', keywords=['报警', '微博'])
 
 try:
     obj.start()
