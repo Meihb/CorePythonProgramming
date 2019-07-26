@@ -295,6 +295,7 @@ def get_request(word, startdate, enddate, headers, word_path, browser):
     save_path = word_path
     myThrottle.wait('http://index.baidu.com')
     browser.get('http://index.baidu.com/?tpl=trend&%s' % (urllib.parse.urlencode({'word': word.encode('gb2312')})))
+
     browser.implicitly_wait(3)
 
     PPval = browser.execute_script('return PPval')
